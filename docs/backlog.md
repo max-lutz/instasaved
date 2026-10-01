@@ -11,7 +11,7 @@ Share a post from Instagram to the app → a Post (shortcode identity, ADR-0007)
 - Blocked by: 1
 
 ## 3. Post detail
-Open a Post: Embed in a WebView, Title / Description / Post Note editing with the hand-edited flags (Title auto-follows Description until hand-edited), open in Instagram, delete (→ Deleted Post).
+Open a Post: Embed in a WebView, Title / Description / Post Note editing with the hand-edited flags (Title auto-follows Description until hand-edited), open in Instagram, delete (→ Recently deleted, Undo snackbar).
 - Blocked by: 2
 
 ## 4. Collections
@@ -31,11 +31,11 @@ Pure Kotlin: Export ZIP → `ExportedPost` list. Text repair, shortcode extracti
 - Blocked by: 1 · needs a real Export sample
 
 ## 8. Sync rules engine
-Pure function implementing `sync-spec.md` R1–R7 + S1, with every row of its test-case table as a unit test.
+Pure function implementing `sync-spec.md` R1–R7 (incl. Placement and R3a) + S1, with every row of its test-case table as a unit test.
 - Blocked by: 7
 
 ## 9. Drive connection + Sync now
-Connect Google Drive (`drive.readonly`), find the newest Export, download, run 7 + 8, apply in one transaction. "Sync now" button, sync status line, error states.
+Connect Google Drive (`drive.readonly`), find the newest Export, download, run 7 + 8, apply in one transaction. "Sync now" button, sync status line, error states, "Apply anyway" on an S1 > 50% refusal.
 - Blocked by: 8, 4
 
 ## 10. Daily background Sync
@@ -45,6 +45,10 @@ WorkManager periodic job (daily, needs network), stale-Export warning (> 3 days)
 ## 11. New / No longer saved / Sync Summary
 New marker (clears on open, "Mark all as seen"), No longer saved marker + view, dismissable Sync Summary.
 - Blocked by: 9
+
+## 11b. Recently deleted
+Recently deleted view: restore (recreating the Collection if it was deleted in the same action), "Empty now", purge to shortcode trace after 30 days. Share-in of a Deleted Post asks "Add it back?" (ADR-0012).
+- Blocked by: 4
 
 ## 12. Search, sort, group by Tag
 Search Title / Description / Post Note; sort by saved / modified / Title; group by Tag.

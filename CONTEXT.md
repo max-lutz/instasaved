@@ -25,7 +25,7 @@ A user-named group of Posts in the app, with a Collection Note and a color. A Po
 _Avoid_: Category, group, folder, album
 
 **Instagram Collection**:
-A collection as it exists on Instagram, read from the Export. Only used to pick the Collection a *new* Post lands in (the Collection with the same name). Never written to, and never moves a Post that is already in the app.
+A collection as it exists on Instagram, read from the Export. Used to pick the Collection a Post lands in the first time an Export mentions it (the Collection with the same name — see Placement in `docs/sync-spec.md`), and shown on the Post as "also on Instagram in". Never written to, and never moves a Post the user has sorted or that an earlier Export already placed.
 _Avoid_: Using bare "Collection" for this — "Collection" always means the app's.
 
 **Collection Note**:
@@ -61,8 +61,12 @@ A marker on a Post that appeared in an earlier Export but is missing from the la
 _Avoid_: Removed, orphan, unsaved post
 
 **Deleted Post**:
-The remembered trace of a Post the user deleted in the app, keyed by shortcode, so Sync never brings it back.
+A Post the user deleted in the app. Sync never brings it back. It first sits in Recently deleted, then is reduced to a trace keyed by shortcode.
 _Avoid_: Tombstone (implementation term), trash
+
+**Recently deleted**:
+The first 30 days of a Deleted Post: the full Post (notes, Tags, Collection) is kept and can be restored. After 30 days, or on "Empty now", only the shortcode trace remains.
+_Avoid_: Trash, bin
 
 **Thumbnail**:
 A small image of a Post, downloaded once and stored on the phone for the grid. Best-effort: a Post without one shows a placeholder card.

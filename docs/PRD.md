@@ -29,14 +29,15 @@ The author, plus possibly a few friends or family. Android only. Installed from 
 
 **Browse**
 - Instagram-like grid of Thumbnails (placeholder card with owner name when missing). Detailed visual design comes from a mockup step before the UI slice.
-- Views: All, To sort, each Collection, No longer saved.
+- Views: All, To sort, each Collection, No longer saved, Recently deleted.
 - Collections listed alphabetically.
 - Search across Title, Description, Post Note. Sort by saved date, modified date, Title. Group by Tag.
 
 **Post**
 - Detail view with the Embed (videos, carousels), Title, Description, Post Note, Collection, Tags, owner, "open in Instagram".
 - Title auto-follows Description's first sentence until hand-edited; Description follows the Instagram caption until hand-edited.
-- Up to 4 Tags. Delete (remembered as a Deleted Post).
+- Up to 4 Tags. Delete (remembered as a Deleted Post) with an Undo snackbar; Recently deleted view with restore for 30 days and "Empty now" (ADR-0012).
+- "Also on Instagram in: …" hint listing the post's other Instagram Collections.
 - New marker: cleared on open; "Mark all as seen".
 
 **Collections & Tags**
@@ -44,13 +45,13 @@ The author, plus possibly a few friends or family. Android only. Installed from 
 - Deleting a Collection asks: keep its Posts (to To sort) or delete them too (ADR-0010).
 
 **Capture & Sync**
-- Share-in: share a post from Instagram to InstaSaved → lands in To sort, optionally tag it on the spot.
+- Share-in: share a post from Instagram to InstaSaved → lands in To sort, optionally tag it on the spot. Sharing a Deleted Post asks "You deleted this before. Add it back?" (ADR-0012).
 - Connect Google Drive once; daily background Sync + "Sync now"; rules in `sync-spec.md`.
 - Sync status always visible ("Synced 2 h ago"), error and stale-Export states, dismissable Sync Summary. No system notification.
 
 **Data safety**
 - Android automatic backup (database + settings, no Thumbnails).
-- Manual backup file: write / restore (restore is wipe-and-replace).
+- Manual backup file: write / restore (restore is wipe-and-replace). Backups include Recently deleted Posts with their deletion dates.
 - One-time Desktop Import of a Socials Organizer v6 backup.
 
 ## Setup the user does once
@@ -59,10 +60,7 @@ See README: Instagram scheduled Export (Drive, daily, all time, JSON), Google si
 
 ## Open questions
 
-1. **A post saved in several Instagram Collections** — the app allows one Collection per Post. Default until decided: the first Instagram Collection listed in the Export.
-2. **A Share-in post still in To sort, later seen in an Export inside Instagram Collection "a"** — stay in To sort (strict "Sync never moves existing Posts", current rule) or get placed in "a" since the user never sorted it?
-3. **Undo a deletion?** Deleted Posts are permanent today. A "Recently deleted" list with restore may be worth adding.
-4. **Export file layout** — folder, file names and JSON shape must be confirmed from the first real Export (see `sync-spec.md`).
-5. **Does Meta's export schedule expire?** Unknown; the stale-Export warning is the mitigation.
-6. **Thumbnail endpoints** are unofficial and may stop working.
-7. **UI mockup** — Q6 ideas to explore: 3-column grid, Collections as a circular "highlights" row, To sort as an inbox, Post details in a bottom sheet.
+1. **Export file layout** — folder, file names and JSON shape must be confirmed from the first real Export (see `sync-spec.md`).
+2. **Does Meta's export schedule expire?** Unknown; the stale-Export warning is the mitigation.
+3. **Thumbnail endpoints** are unofficial and may stop working.
+4. **UI mockup** — Q6 ideas to explore: 3-column grid, Collections as a circular "highlights" row, To sort as an inbox, Post details in a bottom sheet.

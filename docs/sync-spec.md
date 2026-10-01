@@ -25,29 +25,40 @@ Let `E` be the set of shortcodes in the Export.
 
 **R1 — New Post.** Shortcode in `E`, not in the app, not a Deleted Post → create a Post:
 - Description = caption, Title auto-derived, owner fields filled, saved-at = Export's saved timestamp.
-- Collection = the app Collection whose name matches the post's Instagram Collection; **create that Collection if it doesn't exist** (next palette color, empty note). No Instagram Collection → To sort.
+- Collection = picked by **Placement** (below). No Instagram Collection → To sort.
+- Instagram Collection names = all of the post's Instagram Collections, stored on the Post for display only ("also on Instagram in: b, c"); refreshed on every Sync, never used to move a Post.
 - Marked **New**. Marked as *seen in an Export*.
 
-**R2 — Deleted Post.** Shortcode in `E` and is a Deleted Post → ignore silently. Deleted Posts never come back through Sync.
+**Placement** (used by R1 and R3a). Given the post's Instagram Collections:
+1. If one or more match an existing app Collection by name, take the first of those alphabetically.
+2. Otherwise take the first Instagram Collection alphabetically and **create an app Collection with that name** (next palette color, empty note).
+
+Alphabetical order makes the result independent of how Meta orders the Export.
+
+**R2 — Deleted Post.** Shortcode in `E` and is a Deleted Post — whether still in Recently deleted or already reduced to its trace → ignore silently. Deleted Posts never come back through Sync (only the user can restore one, see ADR-0012).
 
 **R3 — Existing Post still saved.** Shortcode in `E` and in the app →
 - Never changes Collection, Tags, Post Note, or a hand-edited Title.
 - If Description has not been hand-edited and the caption differs → update Description (Title follows if not hand-edited). Count as "caption updated".
-- Fill owner fields if empty.
+- Fill owner fields if empty. Refresh the stored Instagram Collection names.
 - Mark as *seen in an Export*. If it was **No longer saved**, clear the marker (count as "back on Instagram").
 - Not marked New (it was already in the app — this includes Posts added by Share-in).
+
+**R3a — First-sighting placement.** Applies within R3, evaluated *before* marking the Post seen: if the Post has **never been seen in an Export** and is **still in To sort**, and the post has at least one Instagram Collection → set its Collection by Placement (which may create a Collection). It happens once; afterwards the Post is never moved by Sync, including if the user puts it back in To sort. A Post the user already put in a Collection is untouched (ADR-0011).
 
 **R4 — Existing Post missing from the Export.** Shortcode not in `E`, Post in the app →
 - If it has been *seen in an Export* before → mark **No longer saved** (if not already).
 - Otherwise (e.g. Share-in never saved on Instagram) → nothing.
 
-**R5 — Collections are only created by R1.** An Instagram Collection whose posts are all already in the app (wherever the user put them) creates nothing. A renamed or deleted app Collection is not tracked: if a new post arrives in Instagram Collection "a" and no app Collection is named "a", a fresh "a" is created.
+**R5 — Collections are only created by Placement** (R1 and R3a). An Instagram Collection whose posts are all already in the app (wherever the user put them) creates nothing. A renamed or deleted app Collection is not tracked: if a new post arrives in Instagram Collection "a" and no app Collection is named "a", a fresh "a" is created.
 
 **R6 — Idempotent.** Applying the same Export twice produces no changes the second time.
 
 **R7 — Newest only.** Only the newest Export is applied; older ones in Drive are ignored and never deleted (the app has read-only access).
 
 **S1 — Sanity check (safety net).** Refuse to apply an Export if it parses to zero posts, or if it would mark more than 50% of the Posts *seen in an Export* as No longer saved. Show the error in the sync status instead. Protects against a partial Export, a wrong date range, or a Meta format change silently badging everything.
+- The **> 50% refusal** offers **"Apply anyway"**: the user confirms that one Export (by Drive file id) and it is applied in full. Without this, a genuine mass unsave would block every later Sync.
+- The **0-posts refusal** has no override.
 
 ## Sync status and Summary
 
@@ -70,7 +81,9 @@ Let `E` be the set of shortcodes in the Export.
 | 8 | A seen in an earlier Export | (A missing) | A marked No longer saved, kept |
 | 9 | A No longer saved | A | marker cleared; counted "back on Instagram" |
 | 10 | A added by Share-in, never in an Export | (A missing) | nothing |
-| 11 | A added by Share-in | A in "Recipes" | A matched by shortcode, not duplicated, not New, stays where user put it |
+| 11a | A added by Share-in, user moved it to "Travel", never in an Export | A in "Recipes" | A matched by shortcode, not duplicated, not New, stays in "Travel" |
+| 11b | A added by Share-in, still in To sort, never in an Export | A in "Recipes" | A moved to "Recipes" (created if missing), not New |
+| 11c | A seen in an earlier Export with no Instagram Collection, in To sort | A in "Recipes" | A stays in To sort (not its first sighting) |
 | 12 | A, Description not hand-edited | A with a changed caption | Description updated; Title follows unless hand-edited |
 | 13 | A, Description hand-edited | A with a changed caption | Description untouched |
 | 14 | A saved as `/reel/X/?igsh=…` | `/p/X/` | same Post |
@@ -78,6 +91,10 @@ Let `E` be the set of shortcodes in the Export.
 | 16 | 10 Posts seen in Exports | Export with 3 of them | refused by S1, nothing applied, error shown |
 | 17 | any | Export with 0 posts | refused by S1 |
 | 18 | caption `Câ€™est` in JSON | — | Description `C’est` |
+| 19 | app has Collection "Travel" | new C in "Recipes" and "Travel" | C goes into existing "Travel"; no "Recipes" created; C shows "also on Instagram in: Recipes" |
+| 20 | no matching app Collection | new C in "Recipes" and "Desserts" | "Desserts" created with C (first alphabetically) |
+| 21 | A in Recently deleted | A | ignored; A stays in Recently deleted |
+| 22 | 10 Posts seen in Exports, Export with 3 refused by S1 | user taps "Apply anyway" | applied: 7 marked No longer saved |
 
 ## Export file format — to verify
 
@@ -87,4 +104,4 @@ Not yet verified — check against the first real Export and commit it (anonymiz
 - Folder and file naming of the ZIP in Drive (needed to find "the newest Export").
 - Paths inside the ZIP. Community reports: `your_instagram_activity/saved/saved_posts.json` and `saved_collections.json`.
 - JSON shape. Community reports two variants: an older `{"saved_saved_media": [{"title": <owner>, "string_map_data": {"Saved on": {"href", "timestamp"}}}]}`, and a newer one with `timestamp` + `label_values` (URL, Caption, Owner…). Collections list their posts under a "Media" group.
-- Whether a post saved in several Instagram Collections appears under each (see PRD open question).
+- Whether a post saved in several Instagram Collections appears under each (Placement assumes it can).
