@@ -1,0 +1,4 @@
+<resources>
+    <!-- Window theme only; the UI itself is themed in Compose. -->
+    <style name="Theme.InstaSaved" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

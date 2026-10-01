@@ -40,12 +40,27 @@ Add this repo's GitHub Releases to [Obtainium](https://github.com/ImranR98/Obtai
 
 ## Build
 
-Android Studio (latest stable), JDK 17.
+Android Studio (latest stable), JDK 21.
 
 ```
 ./gradlew assembleDebug
 ./gradlew test
 ```
+
+## Release
+
+CI runs `./gradlew test assembleRelease` on every push. Pushing a tag `vMAJOR.MINOR.PATCH` (e.g. `v0.1.0`) builds a signed APK and publishes it as a GitHub Release, which is what Obtainium follows. The version name comes from the tag; the version code is `MAJOR*10000 + MINOR*100 + PATCH`, so minor and patch stay below 100.
+
+The release keystore lives outside the repo and is passed to the Release workflow through these repository secrets:
+
+| Secret | Value |
+| --- | --- |
+| `INSTASAVED_KEYSTORE_BASE64` | the `.jks` file, base64-encoded |
+| `INSTASAVED_KEYSTORE_PASSWORD` | keystore password |
+| `INSTASAVED_KEY_ALIAS` | key alias |
+| `INSTASAVED_KEY_PASSWORD` | key password |
+
+To build a signed APK locally, set the same variables, with `INSTASAVED_KEYSTORE_PATH` pointing to the `.jks` file instead of the base64 value. Without them, `assembleRelease` produces an unsigned APK.
 
 ## Privacy
 

@@ -11,3 +11,4 @@ build/
 *.jks
 .claude/
 skills-lock.json
+.kotlin/
