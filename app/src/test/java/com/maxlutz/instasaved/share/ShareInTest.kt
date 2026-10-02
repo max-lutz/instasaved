@@ -78,6 +78,17 @@ class ShareInTest {
     }
 
     @Test
+    fun sharingADeletedPostReportsItWithoutBringingItBack() = runTest {
+        shareIn.receive("https://www.instagram.com/p/C1a2B3c4D5e/")
+        db.postDao().delete(toSort().single().id, at = 5L)
+
+        val again = shareIn.receive("https://www.instagram.com/p/C1a2B3c4D5e/")
+
+        assertTrue(again is Result.PreviouslyDeleted)
+        assertEquals(emptyList<Post>(), toSort())
+    }
+
+    @Test
     fun ignoresTextWithoutAPostLink() = runTest {
         assertEquals(Result.NotAPostLink, shareIn.receive("https://www.instagram.com/some.user/"))
         assertEquals(emptyList<Post>(), toSort())
