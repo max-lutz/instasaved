@@ -7,14 +7,16 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Post::class], version = 2)
+@Database(entities = [Post::class], version = 3)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun postDao(): PostDao
 
     companion object {
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+
         fun open(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "instasaved.db")
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(*MIGRATIONS)
                 .build()
     }
 }
@@ -35,5 +37,19 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         db.execSQL("DROP TABLE `posts`")
         db.execSQL("ALTER TABLE `posts_new` RENAME TO `posts`")
         db.execSQL("CREATE UNIQUE INDEX `index_posts_shortcode` ON `posts` (`shortcode`)")
+    }
+}
+
+/** Adds Title, Description, Post Note with their hand-edited flags, and deletedAt for Recently deleted. */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        listOf(
+            "`title` TEXT NOT NULL DEFAULT ''",
+            "`titleHandEdited` INTEGER NOT NULL DEFAULT 0",
+            "`description` TEXT NOT NULL DEFAULT ''",
+            "`descriptionHandEdited` INTEGER NOT NULL DEFAULT 0",
+            "`postNote` TEXT NOT NULL DEFAULT ''",
+            "`deletedAt` INTEGER",
+        ).forEach { db.execSQL("ALTER TABLE `posts` ADD COLUMN $it") }
     }
 }

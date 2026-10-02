@@ -6,4 +6,15 @@ Share a post from Instagram to add it.</string>
     <string name="share_in_added">Added to To sort</string>
     <string name="share_in_already_saved">Already saved</string>
     <string name="share_in_not_a_post_link">Not an Instagram post link</string>
+    <string name="share_in_previously_deleted">You deleted this post before</string>
+    <string name="post_detail_untitled">Untitled</string>
+    <string name="title">Title</string>
+    <string name="title_follows_description">Follows the Description until you edit it</string>
+    <string name="description">Description</string>
+    <string name="post_note">Post Note</string>
+    <string name="open_in_instagram">Open in Instagram</string>
+    <string name="nothing_can_open_link">No app can open this link</string>
+    <string name="delete">Delete</string>
+    <string name="post_deleted">Moved to Recently deleted</string>
+    <string name="undo">Undo</string>
 </resources>

@@ -36,7 +36,12 @@ class MigrationTest {
             val entities = schema.getJSONArray("entities")
             for (i in 0 until entities.length()) {
                 val entity = entities.getJSONObject(i)
-                db.execSQL(entity.getString("createSql").replace("\${TABLE_NAME}", entity.getString("tableName")))
+                val table = entity.getString("tableName")
+                db.execSQL(entity.getString("createSql").replace("\${TABLE_NAME}", table))
+                val indices = entity.optJSONArray("indices") ?: continue
+                for (j in 0 until indices.length()) {
+                    db.execSQL(indices.getJSONObject(j).getString("createSql").replace("\${TABLE_NAME}", table))
+                }
             }
             val setup = schema.getJSONArray("setupQueries")
             for (i in 0 until setup.length()) db.execSQL(setup.getString(i))
@@ -46,7 +51,7 @@ class MigrationTest {
     }
 
     private fun openMigrated() = Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-        .addMigrations(MIGRATION_1_2)
+        .addMigrations(*AppDatabase.MIGRATIONS)
         .allowMainThreadQueries()
         .build()
 
@@ -60,5 +65,25 @@ class MigrationTest {
 
         assertEquals("https://www.instagram.com/p/ABC123/", post.url)
         assertFalse(post.seenInExport)
+    }
+
+    @Test
+    fun migrates2To3WithEmptyTextNothingHandEditedAndNotDeleted() = runTest {
+        createDatabase(
+            2,
+            seed = listOf(
+                "INSERT INTO posts (shortcode, url, addedAt, seenInExport) " +
+                    "VALUES ('ABC123', 'https://www.instagram.com/reel/ABC123/', 7, 1)",
+            ),
+        )
+
+        val db = openMigrated()
+        val post = db.postDao().get("ABC123")!!
+        db.close()
+
+        assertEquals(
+            Post(id = post.id, shortcode = "ABC123", url = "https://www.instagram.com/reel/ABC123/", addedAt = 7, seenInExport = true),
+            post,
+        )
     }
 }
