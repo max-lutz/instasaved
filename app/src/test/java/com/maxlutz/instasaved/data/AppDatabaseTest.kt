@@ -27,9 +27,22 @@ class AppDatabaseTest {
 
     @Test
     fun storesAndReadsAPostByShortcode() = runTest {
-        db.postDao().insert(Post(shortcode = "ABC123"))
+        val id = db.postDao().insert(Post(shortcode = "ABC123", url = "https://www.instagram.com/p/ABC123/", addedAt = 1L))
 
-        assertEquals(Post(shortcode = "ABC123"), db.postDao().get("ABC123"))
+        assertEquals(
+            Post(id = id, shortcode = "ABC123", url = "https://www.instagram.com/p/ABC123/", addedAt = 1L),
+            db.postDao().get("ABC123"),
+        )
         assertNull(db.postDao().get("XYZ789"))
+    }
+
+    @Test
+    fun shortcodeIsUnique() = runTest {
+        db.postDao().insert(Post(shortcode = "ABC123", url = "https://www.instagram.com/p/ABC123/", addedAt = 1L))
+
+        val id = db.postDao().insert(Post(shortcode = "ABC123", url = "https://www.instagram.com/reel/ABC123/", addedAt = 2L))
+
+        assertEquals(-1L, id)
+        assertEquals("https://www.instagram.com/p/ABC123/", db.postDao().get("ABC123")?.url)
     }
 }

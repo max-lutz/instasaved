@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">InstaSaved</string>
+    <string name="to_sort">To sort</string>
+    <string name="to_sort_empty">No posts to sort.
+Share a post from Instagram to add it.</string>
+    <string name="share_in_added">Added to To sort</string>
+    <string name="share_in_already_saved">Already saved</string>
+    <string name="share_in_not_a_post_link">Not an Instagram post link</string>
 </resources>
