@@ -20,7 +20,6 @@ data class SyncPost(
     val ownerUsername: String = "",
     val ownerName: String = "",
     val seenInExport: Boolean = false,
-    val noLongerSaved: Boolean = false,
     val instagramCollections: List<String> = emptyList(),
 )
 
@@ -62,8 +61,8 @@ data class SyncChanges(
 }
 
 /** The Sync Summary's counts; [isEmpty] means there is nothing to show. */
-data class SyncSummary(val new: Int = 0, val backOnInstagram: Int = 0, val captionsUpdated: Int = 0) {
-    val isEmpty get() = new == 0 && backOnInstagram == 0 && captionsUpdated == 0
+data class SyncSummary(val new: Int = 0, val captionsUpdated: Int = 0) {
+    val isEmpty get() = new == 0 && captionsUpdated == 0
 }
 
 data class SyncResult(val changes: SyncChanges, val summary: SyncSummary)
@@ -72,12 +71,9 @@ data class SyncResult(val changes: SyncChanges, val summary: SyncSummary)
 private val alphabetical = String.CASE_INSENSITIVE_ORDER.then(naturalOrder())
 
 /**
- * The changes an Export makes to the app, by the rules of `docs/sync-spec.md`: R1 to R3a and R5, which make it
- * idempotent (R6). Nothing here touches Drive or the database; the caller picks the newest Export (R7), parses it
- * and applies the result.
- *
- * Not here yet: R4 (No longer saved) and the sanity check S1, which wait on whether a scheduled Export is a
- * complete snapshot (sync-spec, Export file format).
+ * The changes an Export makes to the app, by the rules of `docs/sync-spec.md`. An Export only lists what was saved
+ * since the previous one (ADR-0013), so a Post it does not mention is left alone. Nothing here touches Drive or the
+ * database; the caller parses each Export it has not applied yet, oldest first (R7), and applies the result.
  *
  * @param export the Export's posts, one per shortcode, as [parseExport] returns them.
  */
@@ -86,7 +82,6 @@ fun planSync(app: AppState, export: List<ExportedPost>): SyncResult {
     val created = mutableListOf<SyncCollection>()
     val added = mutableListOf<AddedPost>()
     val updated = mutableListOf<SyncPost>()
-    var backOnInstagram = 0
     var captionsUpdated = 0
 
     // Placement. Only the Collections the app had before this Sync count as existing: counting the ones created
@@ -132,16 +127,14 @@ fun planSync(app: AppState, export: List<ExportedPost>): SyncResult {
             ownerUsername = post.ownerUsername.ifEmpty { exported.ownerUsername.orEmpty() },
             ownerName = post.ownerName.ifEmpty { exported.ownerName.orEmpty() },
             seenInExport = true,
-            noLongerSaved = false,
             instagramCollections = exported.instagramCollections,
         )
         if (captionChanged) captionsUpdated++
-        if (post.noLongerSaved) backOnInstagram++
         if (synced != post) updated += synced
     }
 
     return SyncResult(
         SyncChanges(created, added, updated),
-        SyncSummary(new = added.size, backOnInstagram = backOnInstagram, captionsUpdated = captionsUpdated),
+        SyncSummary(new = added.size, captionsUpdated = captionsUpdated),
     )
 }

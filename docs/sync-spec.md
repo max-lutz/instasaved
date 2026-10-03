@@ -4,14 +4,20 @@ How an Export becomes changes to the app's Posts. Terms are defined in `CONTEXT.
 
 ## Pipeline
 
-1. **Find** the newest Export folder in Google Drive (read-only access, see ADR-0004).
-2. **Skip** if that folder (Drive file id) was already processed successfully.
-3. **Download** its saved-posts and saved-collections JSON (see Export file format).
-4. **Parse** into `ExportedPost { shortcode, url, caption?, ownerUsername?, ownerName?, savedAt, instagramCollections: [name] }`.
-5. **Sanity-check** (rule S1). On failure: apply nothing, record the error in the sync status.
-6. **Diff** against app state with rules R1–R7; apply all changes in one DB transaction.
-7. **Record** the sync status (time, Export date, Drive file id) and the Sync Summary.
-8. **Queue** Thumbnail downloads for newly added Posts (best-effort, outside the transaction).
+1. **Find** the Export folders in Google Drive (read-only access, see ADR-0004) that have not been applied yet, by Drive file id.
+
+Then, for each of them, oldest first (R7):
+
+2. **Download** its saved-posts JSON, and its saved-collections JSON if it has one (see Export file format).
+3. **Parse** into `ExportedPost { shortcode, url, caption?, ownerUsername?, ownerName?, savedAt, instagramCollections: [name] }`.
+4. **Diff** against app state with rules R1–R6; apply all changes in one DB transaction, together with the record that this Export (Drive file id) is applied.
+
+And once for the whole Sync:
+
+5. **Record** the sync status (time, date of the newest Export applied) and the Sync Summary, totalled over the Exports applied.
+6. **Queue** Thumbnail downloads for newly added Posts (best-effort, outside the transaction).
+
+An Export that fails (download or parse error) is not recorded as applied: the error shows in the sync status, the other Exports are still applied, and the next Sync tries it again.
 
 ## Normalization
 
@@ -20,6 +26,8 @@ How an Export becomes changes to the app's Posts. Terms are defined in `CONTEXT.
 - **Collection names** match case-insensitively, after trimming.
 
 ## Rules
+
+An Export lists only the posts saved since the previous Export; only the first Export of a schedule lists them all (ADR-0013). So the rules only add and update: a Post that an Export does not mention is left alone, and unsaving a post on Instagram is never seen by the app.
 
 Let `E` be the set of shortcodes in the Export.
 
@@ -33,6 +41,8 @@ Let `E` be the set of shortcodes in the Export.
 1. If one or more match an existing app Collection by name, take the first of those alphabetically.
 2. Otherwise take the first Instagram Collection alphabetically and **create an app Collection with that name** (next palette color, empty note).
 
+An Export after the first carries no Instagram Collections, so its new Posts land in To sort; Placement does its work on a complete Export.
+
 Alphabetical order makes the result independent of how Meta orders the Export. For the same reason, "existing" in step 1 means existing before this Sync: a Collection created earlier in the same Sync is reused by step 2, but does not attract a post away from its alphabetically first Instagram Collection.
 
 **R2 — Deleted Post.** Shortcode in `E` and is a Deleted Post — whether still in Recently deleted or already reduced to its trace → ignore silently. Deleted Posts never come back through Sync (only the user can restore one, see ADR-0012).
@@ -41,33 +51,29 @@ Alphabetical order makes the result independent of how Meta orders the Export. F
 - Never changes Collection, Tags, Post Note, or a hand-edited Title.
 - If Description has not been hand-edited and the caption differs → update Description (Title follows if not hand-edited). Count as "caption updated".
 - Fill owner fields if empty. Refresh the stored Instagram Collection names.
-- Mark as *seen in an Export*. If it was **No longer saved**, clear the marker (count as "back on Instagram").
+- Mark as *seen in an Export*.
 - Not marked New (it was already in the app — this includes Posts added by Share-in).
 
 **R3a — First-sighting placement.** Applies within R3, evaluated *before* marking the Post seen: if the Post has **never been seen in an Export** and is **still in To sort**, and the post has at least one Instagram Collection → set its Collection by Placement (which may create a Collection). It happens once; afterwards the Post is never moved by Sync, including if the user puts it back in To sort. A Post the user already put in a Collection is untouched (ADR-0011).
 
-**R4 — Existing Post missing from the Export.** Shortcode not in `E`, Post in the app →
-- If it has been *seen in an Export* before → mark **No longer saved** (if not already).
-- Otherwise (e.g. Share-in never saved on Instagram) → nothing.
+**R4 — Existing Post missing from the Export.** Shortcode not in `E`, Post in the app → nothing.
 
 **R5 — Collections are only created by Placement** (R1 and R3a). An Instagram Collection whose posts are all already in the app (wherever the user put them) creates nothing. A renamed or deleted app Collection is not tracked: if a new post arrives in Instagram Collection "a" and no app Collection is named "a", a fresh "a" is created.
 
 **R6 — Idempotent.** Applying the same Export twice produces no changes the second time.
 
-**R7 — Newest only.** Only the newest Export is applied; older ones in Drive are ignored and never deleted (the app has read-only access).
-
-**S1 — Sanity check (safety net).** Refuse to apply an Export if it parses to zero posts, or if it would mark more than 50% of the Posts *seen in an Export* as No longer saved. Show the error in the sync status instead. Protects against a partial Export, a wrong date range, or a Meta format change silently badging everything.
-- The **> 50% refusal** offers **"Apply anyway"**: the user confirms that one Export (by Drive file id) and it is applied in full. Without this, a genuine mass unsave would block every later Sync.
-- The **0-posts refusal** has no override.
+**R7 — Every Export, once, oldest first.** Each Export in Drive is applied exactly once: skipping one would lose the posts saved that day. Exports are never deleted (the app has read-only access). An Export with no posts changes nothing and is not an error.
 
 ## Sync status and Summary
 
-- Status line: "Synced 2 h ago · Export from 1 Oct". Error state when the last sync failed (Drive sign-in expired, no Export found, S1 refused, parse error), with the reason.
+- Status line: "Synced 2 h ago · Export from 1 Oct". Error state when the last sync failed (Drive sign-in expired, no Export found, parse error), with the reason.
 - **Stale warning** when the newest Export in Drive is more than 3 days old — the Instagram schedule may have stopped.
-- **Sync Summary** (dismissable, only shown when something changed): new · no longer saved · back on Instagram · captions updated.
+- **Sync Summary** (dismissable, only shown when something changed): new · captions updated.
 - No system notification.
 
 ## Test cases
+
+Case numbers are stable: 10, 16, 17 and 22 tested the "No longer saved" marker and its sanity check, and went away with them (ADR-0013).
 
 | # | Given | Export contains | Then |
 |---|---|---|---|
@@ -78,9 +84,8 @@ Alphabetical order makes the result independent of how Meta orders the Export. F
 | 5 | user deleted Collection "Recipes" | new post C in "Recipes" | "Recipes" recreated with C only |
 | 6 | user renamed "Recipes" → "🍝 Recipes" | new post C in "Recipes" | fresh "Recipes" created with C |
 | 7 | A deleted by user | A | ignored; A stays deleted |
-| 8 | A seen in an earlier Export | (A missing) | A marked No longer saved, kept |
-| 9 | A No longer saved | A | marker cleared; counted "back on Instagram" |
-| 10 | A added by Share-in, never in an Export | (A missing) | nothing |
+| 8 | A in the app | (A missing) | nothing: A is left as it is |
+| 9 | any | Export with 0 posts | no changes, no Summary, no error |
 | 11a | A added by Share-in, user moved it to "Travel", never in an Export | A in "Recipes" | A matched by shortcode, not duplicated, not New, stays in "Travel" |
 | 11b | A added by Share-in, still in To sort, never in an Export | A in "Recipes" | A moved to "Recipes" (created if missing), not New |
 | 11c | A seen in an earlier Export with no Instagram Collection, in To sort | A in "Recipes" | A stays in To sort (not its first sighting) |
@@ -88,13 +93,10 @@ Alphabetical order makes the result independent of how Meta orders the Export. F
 | 13 | A, Description hand-edited | A with a changed caption | Description untouched |
 | 14 | A saved as `/reel/X/?igsh=…` | `/p/X/` | same Post |
 | 15 | any | same Export applied twice | second run: no changes, no Summary |
-| 16 | 10 Posts seen in Exports | Export with 3 of them | refused by S1, nothing applied, error shown |
-| 17 | any | Export with 0 posts | refused by S1 |
 | 18 | caption `Câ€™est` in JSON | — | Description `C’est` |
 | 19 | app has Collection "Travel" | new C in "Recipes" and "Travel" | C goes into existing "Travel"; no "Recipes" created; C shows "also on Instagram in: Recipes" |
 | 20 | no matching app Collection | new C in "Recipes" and "Desserts" | "Desserts" created with C (first alphabetically) |
 | 21 | A in Recently deleted | A | ignored; A stays in Recently deleted |
-| 22 | 10 Posts seen in Exports, Export with 3 refused by S1 | user taps "Apply anyway" | applied: 7 marked No longer saved |
 
 ## Export file format
 
@@ -125,4 +127,12 @@ What the parser does with it:
 - **Instagram Collection names are not unique**: the same name twice, case variants ("books" / "Books"), stray spaces. Names are trimmed and a post lists each exact name once; matching them to app Collections ignores case (Normalization).
 - A post listed in an Instagram Collection but not in `saved_posts.json` is ignored.
 
-**Open — the 10-02 Export held only the one post saved since the 10-01 Export**, and no collections file. If scheduled Exports are incremental even with "all time", an Export is not a complete snapshot and R4 and S1 cannot work as written (ADR-0003). To settle with the Exports that follow before the Sync rules engine is built.
+**Scheduled Exports are incremental, even with "all time"** (confirmed on the Exports of 2026-10-01 to 10-03). Only the first Export of a schedule is a complete snapshot; each later one holds just the posts saved since the previous Export:
+
+| Export | Posts | Saved between | Already in an earlier Export | `saved_collections.json` | Labels |
+|---|---|---|---|---|---|
+| 10-01 | 871 | 2020 → 10-01 | — | yes | French |
+| 10-02 | 1 | 10-02 | 0 | no | English |
+| 10-03 | 12 | 10-03 | 0 | no | English |
+
+An incremental Export carries no collections file even when its posts were saved into Instagram Collections (some of the 10-03 posts were). **Open:** whether selecting more categories than "Saved" in the schedule brings Instagram Collections into the daily Exports.

@@ -7,10 +7,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * The test-case table of `docs/sync-spec.md`, by its case numbers. Cases 8, 10, 16, 17 and 22 (R4 and S1) are not
- * here yet: see [planSync].
- */
+/** The test-case table of `docs/sync-spec.md`, by its case numbers. */
 class SyncRulesTest {
     private fun exported(
         shortcode: String,
@@ -164,15 +161,26 @@ class SyncRulesTest {
         assertTrue(summary.isEmpty)
     }
 
+    // Case 8
+    @Test
+    fun postMissingFromTheExportIsLeftAlone() {
+        val app = AppState(posts = listOf(synced("A", collection = "Travel")), collections = listOf(collection("Travel")))
+
+        val (changes, summary) = planSync(app, listOf(exported("B")))
+
+        assertEquals(emptyList<SyncPost>(), changes.updatedPosts)
+        assertEquals(SyncSummary(new = 1), summary)
+    }
+
     // Case 9
     @Test
-    fun postBackInAnExportIsNoLongerMarkedNoLongerSaved() {
-        val app = AppState(posts = listOf(synced("A").copy(noLongerSaved = true)))
+    fun exportWithoutPostsChangesNothing() {
+        val app = AppState(posts = listOf(synced("A")))
 
-        val (changes, summary) = planSync(app, listOf(exported("A")))
+        val (changes, summary) = planSync(app, emptyList())
 
-        assertFalse(changes.updated("A").noLongerSaved)
-        assertEquals(SyncSummary(backOnInstagram = 1), summary)
+        assertTrue(changes.isEmpty)
+        assertTrue(summary.isEmpty)
     }
 
     // Case 11a
@@ -283,7 +291,7 @@ class SyncRulesTest {
             posts = listOf(
                 synced("A", description = "Old caption"),
                 SyncPost(shortcode = "B"),
-                synced("C").copy(noLongerSaved = true),
+                synced("C"),
             ),
             collections = listOf(collection("Travel")),
             deletedShortcodes = setOf("D"),

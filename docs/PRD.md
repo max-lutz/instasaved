@@ -29,7 +29,7 @@ The author, plus possibly a few friends or family. Android only. Installed from 
 
 **Browse**
 - Instagram-like grid of Thumbnails (placeholder card with owner name when missing). Detailed visual design comes from a mockup step before the UI slice.
-- Views: All, To sort, each Collection, No longer saved, Recently deleted.
+- Views: All, To sort, each Collection, Recently deleted.
 - Collections listed alphabetically.
 - Search across Title, Description, Post Note. Sort by saved date, modified date, Title. Group by Tag.
 

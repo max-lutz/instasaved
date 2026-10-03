@@ -1,5 +1,7 @@
 # Saved posts come from a scheduled, all-time JSON Export in Google Drive
 
+_Amended by ADR-0013: only the first Export of a schedule is a complete snapshot, so "No longer saved" was dropped. The choice of the scheduled Export as the source stands._
+
 Instagram offers no API to read a personal account's saved posts. The only sanctioned route is "Export your information", which can be scheduled to an external service. The user sets it once: **Export to Google Drive, daily, all time, JSON**, saved posts only. Each Export is therefore a complete snapshot of what is saved on Instagram.
 
 A complete snapshot is what makes "No longer saved" detectable: a post missing from a last-month Export is not necessarily unsaved, but one missing from an all-time Export is. JSON was chosen over HTML because the desktop app's HTML parser depends on French labels and Meta's generated CSS class names.
