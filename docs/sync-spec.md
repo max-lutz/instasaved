@@ -33,7 +33,7 @@ Let `E` be the set of shortcodes in the Export.
 1. If one or more match an existing app Collection by name, take the first of those alphabetically.
 2. Otherwise take the first Instagram Collection alphabetically and **create an app Collection with that name** (next palette color, empty note).
 
-Alphabetical order makes the result independent of how Meta orders the Export.
+Alphabetical order makes the result independent of how Meta orders the Export. For the same reason, "existing" in step 1 means existing before this Sync: a Collection created earlier in the same Sync is reused by step 2, but does not attract a post away from its alphabetically first Instagram Collection.
 
 **R2 — Deleted Post.** Shortcode in `E` and is a Deleted Post — whether still in Recently deleted or already reduced to its trace → ignore silently. Deleted Posts never come back through Sync (only the user can restore one, see ADR-0012).
 
