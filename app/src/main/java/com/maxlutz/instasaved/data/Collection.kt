@@ -20,8 +20,8 @@ data class Collection(
     val note: String = "",
 )
 
-/** Whether two Collection names are the same name. */
-fun sameCollectionName(a: String, b: String) = a.trim().equals(b.trim(), ignoreCase = true)
+/** Whether two Collection names, or two Tag names, are the same name. */
+fun sameName(a: String, b: String) = a.trim().equals(b.trim(), ignoreCase = true)
 
 data class CollectionWithCount(
     @Embedded val collection: Collection,

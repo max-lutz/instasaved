@@ -3,6 +3,7 @@ package com.maxlutz.instasaved.detail
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -42,18 +44,24 @@ import com.maxlutz.instasaved.collections.ColorDot
 import com.maxlutz.instasaved.data.Collection
 import com.maxlutz.instasaved.data.PALETTE
 import com.maxlutz.instasaved.data.Post
+import com.maxlutz.instasaved.data.Tag
 import com.maxlutz.instasaved.data.editDescription
 import com.maxlutz.instasaved.data.editPostNote
 import com.maxlutz.instasaved.data.editTitle
 import com.maxlutz.instasaved.data.nextColor
+import com.maxlutz.instasaved.tags.TagChip
+import com.maxlutz.instasaved.tags.TagPickerDialog
 
 /**
- * An opened Post: its Embed, then its Collection, Title, Description and Post Note, editable in place.
+ * An opened Post: its Embed, then its Collection, Tags, Title, Description and Post Note, editable in place.
  * Every text edit is handed to [onTextChange] as the whole edited Post, flags included.
  *
  * @param collections every Collection, alphabetically, to pick the Post's from.
  * @param onCollectionChange the picked Collection's id, or null for To sort.
  * @param onNewCollection a Collection created from the picker, to create and put the Post in.
+ * @param tags every Tag, alphabetically, to pick the Post's from.
+ * @param postTags the Tags the Post carries, alphabetically.
+ * @param onNewTag a Tag created from the picker, to create and put on the Post.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,6 +71,11 @@ fun PostDetailScreen(
     onTextChange: (Post) -> Unit,
     onCollectionChange: (Long?) -> Unit,
     onNewCollection: (Collection) -> Unit,
+    tags: List<Tag>,
+    postTags: List<Tag>,
+    onAddTag: (Tag) -> Unit,
+    onRemoveTag: (Tag) -> Unit,
+    onNewTag: (Tag) -> Unit,
     onOpenInInstagram: () -> Unit,
     onDelete: () -> Unit,
     showEmbed: Boolean = true,
@@ -104,6 +117,7 @@ fun PostDetailScreen(
                     onPick = onCollectionChange,
                     onNew = onNewCollection,
                 )
+                PostTags(tags, postTags, onAddTag, onRemoveTag, onNewTag)
                 OutlinedTextField(
                     value = draft.title,
                     onValueChange = { edit { editTitle(it) } },
@@ -208,6 +222,41 @@ private fun CollectionPicker(
     }
 }
 
+/** The Post's Tags, then a chip opening the Tag picker. */
+@Composable
+private fun PostTags(
+    tags: List<Tag>,
+    postTags: List<Tag>,
+    onAdd: (Tag) -> Unit,
+    onRemove: (Tag) -> Unit,
+    onNew: (Tag) -> Unit,
+) {
+    var picking by rememberSaveable { mutableStateOf(false) }
+
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        postTags.forEach { TagChip(it) }
+        AssistChip(
+            onClick = { picking = true },
+            label = { Text(stringResource(if (postTags.isEmpty()) R.string.add_tags else R.string.edit_tags)) },
+        )
+    }
+
+    if (picking) {
+        TagPickerDialog(
+            title = stringResource(R.string.tags),
+            tags = tags,
+            onPost = postTags,
+            onAdd = onAdd,
+            onRemove = onRemove,
+            onNew = onNew,
+            onDismiss = { picking = false },
+        )
+    }
+}
+
 @Preview
 @Composable
 private fun PostDetailScreenPreview() {
@@ -225,6 +274,11 @@ private fun PostDetailScreenPreview() {
             onTextChange = {},
             onCollectionChange = {},
             onNewCollection = {},
+            tags = listOf(Tag(1, "Quick", PALETTE[1]), Tag(2, "Vegan", PALETTE[3])),
+            postTags = listOf(Tag(2, "Vegan", PALETTE[3])),
+            onAddTag = {},
+            onRemoveTag = {},
+            onNewTag = {},
             onOpenInInstagram = {},
             onDelete = {},
             showEmbed = false,

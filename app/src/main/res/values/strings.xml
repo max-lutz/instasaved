@@ -39,4 +39,16 @@ Open a Post to put it here.</string>
     </plurals>
     <string name="keep_posts">Keep Posts in To sort</string>
     <string name="delete_posts_too">Delete Posts too</string>
+    <string name="tags">Tags</string>
+    <string name="new_tag">New Tag</string>
+    <string name="new_tag_ellipsis">New Tag…</string>
+    <string name="edit_tag">Edit Tag</string>
+    <string name="tag_name">Name</string>
+    <string name="tag_name_taken">Another Tag already has this name</string>
+    <string name="no_tags">No Tags yet.</string>
+    <string name="max_tags_per_post">Up to %1$d Tags per Post</string>
+    <string name="add_tags">Add Tags</string>
+    <string name="edit_tags">Edit Tags</string>
+    <string name="done">Done</string>
+    <string name="share_in_tag_it">Tag it now?</string>
 </resources>
