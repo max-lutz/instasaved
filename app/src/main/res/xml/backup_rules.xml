@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android's automatic backup, up to Android 11: the database and the settings only (ADR-0001).
+     Thumbnails are out twice over: they live in the no-backup directory, and no rule here includes files. -->
+<full-backup-content>
+    <include domain="database" path="." />
+    <include domain="sharedpref" path="." />
+</full-backup-content>

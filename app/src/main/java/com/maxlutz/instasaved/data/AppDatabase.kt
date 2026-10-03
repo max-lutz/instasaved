@@ -27,6 +27,8 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun recentlyDeletedDao(): RecentlyDeletedDao
 
+    abstract fun backupDao(): BackupDao
+
     companion object {
         val MIGRATIONS = arrayOf(
             MIGRATION_1_2,

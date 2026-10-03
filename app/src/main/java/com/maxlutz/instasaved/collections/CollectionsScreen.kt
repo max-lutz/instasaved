@@ -2,12 +2,15 @@ package com.maxlutz.instasaved.collections
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -42,7 +45,8 @@ import com.maxlutz.instasaved.tags.TagEditorDialog
 
 /**
  * The app's home: All, To sort, then every Collection alphabetically, each with its Post count, then every Tag the
- * same way, then Recently deleted. Tapping a Tag edits it.
+ * same way, then Recently deleted. Tapping a Tag edits it. The Backup menu writes and restores the manual backup
+ * file.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,13 +64,41 @@ fun CollectionsScreen(
     onSaveTag: (Tag) -> Unit,
     recentlyDeletedCount: Int,
     onOpenRecentlyDeleted: () -> Unit,
+    onWriteBackup: () -> Unit,
+    onRestoreBackup: () -> Unit,
 ) {
     var creating by rememberSaveable { mutableStateOf(false) }
     var creatingTag by rememberSaveable { mutableStateOf(false) }
     var editingTagId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var backupMenuOpen by remember { mutableStateOf(false) }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.app_name)) },
+                actions = {
+                    Box {
+                        TextButton(onClick = { backupMenuOpen = true }) { Text(stringResource(R.string.backup)) }
+                        DropdownMenu(expanded = backupMenuOpen, onDismissRequest = { backupMenuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.backup_write)) },
+                                onClick = {
+                                    backupMenuOpen = false
+                                    onWriteBackup()
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.backup_restore)) },
+                                onClick = {
+                                    backupMenuOpen = false
+                                    onRestoreBackup()
+                                },
+                            )
+                        }
+                    }
+                },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             ExtendedFloatingActionButton(onClick = { creating = true }) { Text(stringResource(R.string.new_collection)) }
@@ -209,6 +241,8 @@ private fun CollectionsScreenPreview() {
             onSaveTag = {},
             recentlyDeletedCount = 2,
             onOpenRecentlyDeleted = {},
+            onWriteBackup = {},
+            onRestoreBackup = {},
         )
     }
 }

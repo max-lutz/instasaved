@@ -2,12 +2,14 @@ package com.maxlutz.instasaved
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
@@ -26,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import androidx.room.withTransaction
+import com.maxlutz.instasaved.backup.BackupFormatException
 import com.maxlutz.instasaved.collections.CollectionScreen
 import com.maxlutz.instasaved.collections.CollectionsScreen
 import com.maxlutz.instasaved.data.Collection
@@ -49,11 +52,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
+import java.io.IOException
+import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
     private val database by lazy { (application as InstaSavedApplication).database }
     private val thumbnailStore by lazy { (application as InstaSavedApplication).thumbnailStore }
     private val recentlyDeleted by lazy { (application as InstaSavedApplication).recentlyDeleted }
+    private val backups by lazy { (application as InstaSavedApplication).backups }
     private val shareIn by lazy { ShareIn(database.postDao(), database.recentlyDeletedDao()) }
 
     // Text is saved on every keystroke; the lock keeps the saves in typing order.
@@ -65,10 +71,21 @@ class MainActivity : ComponentActivity() {
     /** The shared link of a Deleted Post, while the user is asked "Add it back?". */
     private var addBackLink by mutableStateOf<PostLink?>(null)
 
+    /** The backup file the user picked, while they are asked whether to replace everything with it. */
+    private var restoreFrom by mutableStateOf<Uri?>(null)
+
+    private val pickBackupDestination =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { it?.let(::writeBackup) }
+
+    // Any type: file managers do not agree on what a .json file is.
+    private val pickBackupFile =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> restoreFrom = uri } }
+
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         quickTagPostId?.let { outState.putLong(QUICK_TAG_POST_ID, it) }
         addBackLink?.let { outState.putString(ADD_BACK_URL, it.url) }
+        restoreFrom?.let { outState.putString(RESTORE_FROM, it.toString()) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -78,6 +95,7 @@ class MainActivity : ComponentActivity() {
             quickTagPostId = savedInstanceState.getLong(QUICK_TAG_POST_ID)
         }
         addBackLink = savedInstanceState?.getString(ADD_BACK_URL)?.let(PostLink::find)
+        restoreFrom = savedInstanceState?.getString(RESTORE_FROM)?.toUri()
         // Not on recreation (e.g. rotation): the share was already handled.
         if (savedInstanceState == null) handleShare(intent)
         ThumbnailWorker.scheduleRetries(this)
@@ -139,6 +157,10 @@ class MainActivity : ComponentActivity() {
                             },
                             recentlyDeletedCount = deleted.size,
                             onOpenRecentlyDeleted = { view = View.RecentlyDeleted },
+                            onWriteBackup = {
+                                pickBackupDestination.launch("instasaved-backup-${LocalDate.now()}.json")
+                            },
+                            onRestoreBackup = { pickBackupFile.launch(arrayOf("*/*")) },
                         )
                         View.RecentlyDeleted -> {
                             BackHandler { view = View.Home }
@@ -274,7 +296,57 @@ class MainActivity : ComponentActivity() {
                         },
                     )
                 }
+
+                restoreFrom?.let { uri ->
+                    AlertDialog(
+                        onDismissRequest = { restoreFrom = null },
+                        title = { Text(stringResource(R.string.backup_restore_title)) },
+                        text = { Text(stringResource(R.string.backup_restore_explained)) },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    restoreFrom = null
+                                    restoreBackup(uri)
+                                },
+                            ) { Text(stringResource(R.string.restore)) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { restoreFrom = null }) { Text(stringResource(R.string.cancel)) }
+                        },
+                    )
+                }
             }
+        }
+    }
+
+    private fun writeBackup(to: Uri) {
+        lifecycleScope.launch {
+            val message = try {
+                backups.write(contentResolver.openOutputStream(to) ?: throw IOException("No stream for $to"))
+                R.string.backup_written
+            } catch (_: IOException) {
+                R.string.backup_write_failed
+            }
+            Toast.makeText(this@MainActivity, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Wipe-and-replace from the backup file, or tells why nothing was changed. */
+    private fun restoreBackup(from: Uri) {
+        lifecycleScope.launch {
+            val message = try {
+                backups.restore(contentResolver.openInputStream(from) ?: throw IOException("No stream for $from"))
+                // The Backup keeps deletion dates: a Post may be past its 30 days by now (ADR-0012).
+                recentlyDeleted.purgeExpired()
+                // A Backup never has Thumbnails.
+                ThumbnailWorker.downloadNow(this@MainActivity)
+                R.string.backup_restored
+            } catch (e: BackupFormatException) {
+                if (e.fromNewerApp) R.string.backup_from_newer_app else R.string.backup_not_a_backup
+            } catch (_: IOException) {
+                R.string.backup_read_failed
+            }
+            Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -372,6 +444,7 @@ private fun now() = System.currentTimeMillis()
 
 private const val QUICK_TAG_POST_ID = "quickTagPostId"
 private const val ADD_BACK_URL = "addBackUrl"
+private const val RESTORE_FROM = "restoreFrom"
 
 /** Which list of Posts is shown under an opened Post. */
 private sealed interface View {

@@ -79,4 +79,15 @@ Open a Post to put it here.</string>
         <item quantity="one">%1$d Post is removed for good, with its notes and Tags. Sync won\'t bring it back.</item>
         <item quantity="other">%1$d Posts are removed for good, with their notes and Tags. Sync won\'t bring them back.</item>
     </plurals>
+    <string name="backup">Backup</string>
+    <string name="backup_write">Back up to a file…</string>
+    <string name="backup_restore">Restore from a backup file…</string>
+    <string name="backup_written">Backup saved</string>
+    <string name="backup_write_failed">Could not save the Backup</string>
+    <string name="backup_restore_title">Restore this Backup?</string>
+    <string name="backup_restore_explained">Everything in the app now is replaced by what the Backup holds: Posts, Collections, Tags, notes and Recently deleted.</string>
+    <string name="backup_restored">Backup restored</string>
+    <string name="backup_not_a_backup">Not an InstaSaved backup file. Nothing was changed.</string>
+    <string name="backup_from_newer_app">This Backup comes from a newer version of the app. Update the app to restore it.</string>
+    <string name="backup_read_failed">Could not read the file. Nothing was changed.</string>
 </resources>
