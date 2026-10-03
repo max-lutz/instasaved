@@ -4,9 +4,9 @@ How an Export becomes changes to the app's Posts. Terms are defined in `CONTEXT.
 
 ## Pipeline
 
-1. **Find** the newest Export ZIP in Google Drive (read-only access, see ADR-0004).
-2. **Skip** if that file (Drive file id) was already processed successfully.
-3. **Download** to app cache, unzip, locate the saved-posts and saved-collections JSON.
+1. **Find** the newest Export folder in Google Drive (read-only access, see ADR-0004).
+2. **Skip** if that folder (Drive file id) was already processed successfully.
+3. **Download** its saved-posts and saved-collections JSON (see Export file format).
 4. **Parse** into `ExportedPost { shortcode, url, caption?, ownerUsername?, ownerName?, savedAt, instagramCollections: [name] }`.
 5. **Sanity-check** (rule S1). On failure: apply nothing, record the error in the sync status.
 6. **Diff** against app state with rules R1–R7; apply all changes in one DB transaction.
@@ -96,12 +96,33 @@ Alphabetical order makes the result independent of how Meta orders the Export.
 | 21 | A in Recently deleted | A | ignored; A stays in Recently deleted |
 | 22 | 10 Posts seen in Exports, Export with 3 refused by S1 | user taps "Apply anyway" | applied: 7 marked No longer saved |
 
-## Export file format — to verify
+## Export file format
 
-Confirmed so far (2026-10-01): a daily scheduled Export to Google Drive offering saved posts exists ("Enregistrements", "Exporter vers Google Drive · Tous les jours"). Settings to use: **all time**, **JSON**.
+Confirmed against the Exports of 2026-10-01 and 2026-10-02 (schedule: "Enregistrements", "Exporter vers Google Drive · Tous les jours", **all time**, **JSON**). Anonymized copies are the test fixtures under `app/src/test/resources/exports/`; `ExportParser.kt` reads the format.
 
-Not yet verified — check against the first real Export and commit it (anonymized if needed) as test fixtures under `app/src/test/resources/exports/`:
-- Folder and file naming of the ZIP in Drive (needed to find "the newest Export").
-- Paths inside the ZIP. Community reports: `your_instagram_activity/saved/saved_posts.json` and `saved_collections.json`.
-- JSON shape. Community reports two variants: an older `{"saved_saved_media": [{"title": <owner>, "string_map_data": {"Saved on": {"href", "timestamp"}}}]}`, and a newer one with `timestamp` + `label_values` (URL, Caption, Owner…). Collections list their posts under a "Media" group.
-- Whether a post saved in several Instagram Collections appears under each (Placement assumes it can).
+**In Drive.** Each Export is a **folder, not a ZIP**: `instagram-<username>-<YYYY-MM-DD>-<random>/`, holding
+- `your_instagram_activity/saved/saved_posts.json`
+- `your_instagram_activity/saved/saved_collections.json` — absent when the Export has no Instagram Collection.
+
+**`saved_posts.json`** is a list of entries, newest first, one per post. An Export with a single post holds that entry alone, not in a list.
+
+```
+{ "timestamp": <saved at, seconds>, "media": [], "fbid": "…", "label_values": [
+    { "label": "URL", "value": "https://www.instagram.com/reel/<shortcode>/", "href": "…" },   // or /p/<shortcode>/
+    { "label": "Caption", "value": "…" }, { "label": "Title", "value": "" },                // the pair repeats per carousel slide; absent when there is no caption
+    { "title": "Hashtags", "dict": [ … ] },
+    { "title": "Owner", "dict": [ { "title": "", "dict": [
+        { "label": "URL", "value": "<link in bio>" }, { "label": "Name", "value": "…" }, { "label": "Username", "value": "…" } ] } ] },
+    { "title": "Brand partner", "dict": [ … ] } ] }
+```
+
+**`saved_collections.json`** is a list of Instagram Collections: `label_values` holds `Name`, `Type`, privacy and update time, then one group whose items are the collection's posts, each with the same fields as a saved post. A post in several Instagram Collections appears under each.
+
+What the parser does with it:
+- **Labels are in the account's language and vary between Exports** (French on 10-01, English on 10-02): `Caption`/`Légende`, `Owner`/`Propriétaire`, `Name`/`Nom`, `Username`/`Nom de profil`. Both are accepted; an Export whose labels are in neither is a parse error, not an Export of posts without captions.
+- Every string, labels included, needs the text repair.
+- **Caption** = the first non-blank one. `Title` is always empty and ignored. An empty owner name is no owner name.
+- **Instagram Collection names are not unique**: the same name twice, case variants ("books" / "Books"), stray spaces. Names are trimmed and a post lists each exact name once; matching them to app Collections ignores case (Normalization).
+- A post listed in an Instagram Collection but not in `saved_posts.json` is ignored.
+
+**Open — the 10-02 Export held only the one post saved since the 10-01 Export**, and no collections file. If scheduled Exports are incremental even with "all time", an Export is not a complete snapshot and R4 and S1 cannot work as written (ADR-0003). To settle with the Exports that follow before the Sync rules engine is built.
