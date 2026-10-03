@@ -17,4 +17,26 @@ Share a post from Instagram to add it.</string>
     <string name="delete">Delete</string>
     <string name="post_deleted">Moved to Recently deleted</string>
     <string name="undo">Undo</string>
+    <string name="back">Back</string>
+    <string name="edit">Edit</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="no_collections">No Collections yet. Create one to sort your Posts into.</string>
+    <string name="new_collection">New Collection</string>
+    <string name="new_collection_ellipsis">New Collection…</string>
+    <string name="edit_collection">Edit Collection</string>
+    <string name="collection_name">Name</string>
+    <string name="collection_name_taken">Another Collection already has this name</string>
+    <string name="collection_note">Collection Note</string>
+    <string name="palette_color">Color %1$d</string>
+    <string name="collection_empty">No Posts in this Collection.
+Open a Post to put it here.</string>
+    <string name="delete_collection_title">Delete “%1$s”?</string>
+    <string name="delete_collection_empty">This Collection has no Posts.</string>
+    <plurals name="delete_collection_posts">
+        <item quantity="one">Keep its Post in To sort, or delete it too? Deleted Posts stay in Recently deleted for 30 days.</item>
+        <item quantity="other">Keep its %1$d Posts in To sort, or delete them too? Deleted Posts stay in Recently deleted for 30 days.</item>
+    </plurals>
+    <string name="keep_posts">Keep Posts in To sort</string>
+    <string name="delete_posts_too">Delete Posts too</string>
 </resources>

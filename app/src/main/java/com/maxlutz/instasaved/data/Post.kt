@@ -1,6 +1,7 @@
 package com.maxlutz.instasaved.data
 
 import androidx.room.Entity
+import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -14,8 +15,19 @@ import androidx.room.PrimaryKey
  * @property descriptionHandEdited once set, Sync no longer overwrites [description] with the caption (ADR-0005).
  * @property deletedAt when the user deleted the Post, in epoch milliseconds; set means it is in Recently deleted
  *   (ADR-0012).
+ * @property collectionId the Collection the Post is in; null means To sort. A deleted Collection leaves it null.
+ * @property deletionId set when the Post was deleted together with its Collection: the [CollectionDeletion] to
+ *   recreate that Collection from on restore (ADR-0012).
  */
-@Entity(tableName = "posts", indices = [Index(value = ["shortcode"], unique = true)])
+@Entity(
+    tableName = "posts",
+    indices = [Index(value = ["shortcode"], unique = true), Index("collectionId"), Index("deletionId")],
+    foreignKeys = [
+        // SET NULL is the safe default if a Collection goes away outside the delete prompt (ADR-0010).
+        ForeignKey(Collection::class, ["id"], ["collectionId"], onDelete = ForeignKey.SET_NULL),
+        ForeignKey(CollectionDeletion::class, ["id"], ["deletionId"], onDelete = ForeignKey.SET_NULL),
+    ],
+)
 data class Post(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val shortcode: String,
@@ -28,4 +40,6 @@ data class Post(
     val descriptionHandEdited: Boolean = false,
     val postNote: String = "",
     val deletedAt: Long? = null,
+    val collectionId: Long? = null,
+    val deletionId: Long? = null,
 )
