@@ -94,7 +94,7 @@ class TagsTest {
         val vegan = create("vegan")
         create("Asian")
         val post = addPost("A")
-        tags.addToPost(post, vegan)
+        tags.addToPost(post, vegan, at = 1L)
 
         assertEquals(
             listOf("Asian" to 0, "vegan" to 1),
@@ -107,8 +107,8 @@ class TagsTest {
         val vegan = create("Vegan")
         val kept = addPost("A")
         val deleted = addPost("B")
-        tags.addToPost(kept, vegan)
-        tags.addToPost(deleted, vegan)
+        tags.addToPost(kept, vegan, at = 1L)
+        tags.addToPost(deleted, vegan, at = 1L)
         posts.delete(deleted, at = 5L)
 
         assertEquals(1, tags.observeAll().first().single().postCount)
@@ -122,8 +122,8 @@ class TagsTest {
         val asian = create("Asian")
         val post = addPost("A")
 
-        assertTrue(tags.addToPost(post, vegan))
-        assertTrue(tags.addToPost(post, asian))
+        assertTrue(tags.addToPost(post, vegan, at = 1L))
+        assertTrue(tags.addToPost(post, asian, at = 1L))
 
         assertEquals(listOf("Asian", "Vegan"), tagsOf(post))
     }
@@ -134,8 +134,8 @@ class TagsTest {
         val a = addPost("A")
         val b = addPost("B")
 
-        tags.addToPost(a, vegan)
-        tags.addToPost(b, vegan)
+        tags.addToPost(a, vegan, at = 1L)
+        tags.addToPost(b, vegan, at = 1L)
 
         assertEquals(listOf("Vegan"), tagsOf(a))
         assertEquals(listOf("Vegan"), tagsOf(b))
@@ -145,9 +145,9 @@ class TagsTest {
     fun addingATagThePostAlreadyHasIsANoOp() = runTest {
         val vegan = create("Vegan")
         val post = addPost("A")
-        tags.addToPost(post, vegan)
+        tags.addToPost(post, vegan, at = 1L)
 
-        assertTrue(tags.addToPost(post, vegan))
+        assertTrue(tags.addToPost(post, vegan, at = 1L))
         assertEquals(listOf("Vegan"), tagsOf(post))
     }
 
@@ -155,9 +155,9 @@ class TagsTest {
     fun aFifthTagIsRefused() = runTest {
         val post = addPost("A")
         val four = listOf("A", "B", "C", "D").map { create(it) }
-        four.forEach { assertTrue(tags.addToPost(post, it)) }
+        four.forEach { assertTrue(tags.addToPost(post, it, at = 1L)) }
 
-        assertFalse(tags.addToPost(post, create("E")))
+        assertFalse(tags.addToPost(post, create("E"), at = 1L))
         assertEquals(listOf("A", "B", "C", "D"), tagsOf(post))
     }
 
@@ -165,28 +165,70 @@ class TagsTest {
     fun aTagAlreadyOnAFullPostIsStillANoOp() = runTest {
         val post = addPost("A")
         val four = listOf("A", "B", "C", "D").map { create(it) }
-        four.forEach { tags.addToPost(post, it) }
+        four.forEach { tags.addToPost(post, it, at = 1L) }
 
-        assertTrue(tags.addToPost(post, four[0]))
+        assertTrue(tags.addToPost(post, four[0], at = 1L))
     }
 
     @Test
     fun removingATagFreesASlot() = runTest {
         val post = addPost("A")
         val four = listOf("A", "B", "C", "D").map { create(it) }
-        four.forEach { tags.addToPost(post, it) }
+        four.forEach { tags.addToPost(post, it, at = 1L) }
 
-        tags.removeFromPost(post, four[1])
+        tags.removeFromPost(post, four[1], at = 1L)
 
         assertEquals(listOf("A", "C", "D"), tagsOf(post))
-        assertTrue(tags.addToPost(post, create("E")))
+        assertTrue(tags.addToPost(post, create("E"), at = 1L))
+    }
+
+    @Test
+    fun addingOrRemovingATagSetsThePostsModifiedDate() = runTest {
+        val vegan = create("Vegan")
+        val post = addPost("A")
+
+        tags.addToPost(post, vegan, at = 5L)
+        val tagged = posts.get("A")?.modifiedAt
+        tags.removeFromPost(post, vegan, at = 8L)
+        val untagged = posts.get("A")?.modifiedAt
+
+        assertEquals(listOf(5L, 8L), listOf(tagged, untagged))
+    }
+
+    @Test
+    fun aTagChangingNothingLeavesTheModifiedDateAlone() = runTest {
+        val post = addPost("A")
+        val four = listOf("A", "B", "C", "D").map { create(it) }
+        four.forEach { tags.addToPost(post, it, at = 5L) }
+
+        tags.addToPost(post, four[0], at = 6L)
+        tags.addToPost(post, create("E"), at = 7L)
+        tags.removeFromPost(post, create("F"), at = 8L)
+
+        assertEquals(5L, posts.get("A")?.modifiedAt)
+    }
+
+    @Test
+    fun listsWhichTagsAreOnWhichPosts() = runTest {
+        val vegan = create("Vegan")
+        val quick = create("Quick")
+        val a = addPost("A")
+        val b = addPost("B")
+        tags.addToPost(a, vegan, at = 1L)
+        tags.addToPost(a, quick, at = 1L)
+        tags.addToPost(b, vegan, at = 1L)
+
+        assertEquals(
+            setOf(PostTag(a, vegan), PostTag(a, quick), PostTag(b, vegan)),
+            tags.observePostTags().first().toSet(),
+        )
     }
 
     @Test
     fun renamingATagShowsOnItsPosts() = runTest {
         val vegan = create("Vegan")
         val post = addPost("A")
-        tags.addToPost(post, vegan)
+        tags.addToPost(post, vegan, at = 1L)
 
         tags.update(Tag(vegan, "Plant-based", PALETTE[0]))
 
@@ -197,10 +239,10 @@ class TagsTest {
     fun tagsAreIndependentOfTheCollection() = runTest {
         val vegan = create("Vegan")
         val post = addPost("A")
-        tags.addToPost(post, vegan)
+        tags.addToPost(post, vegan, at = 1L)
         val recipes = checkNotNull(db.collectionDao().create("Recipes", PALETTE[0]))
 
-        posts.setCollection(post, recipes)
+        posts.setCollection(post, recipes, at = 1L)
         db.collectionDao().deleteKeepingPosts(recipes)
 
         assertEquals(listOf("Vegan"), tagsOf(post))
@@ -210,7 +252,7 @@ class TagsTest {
     fun aRecentlyDeletedPostKeepsItsTags() = runTest {
         val vegan = create("Vegan")
         val post = addPost("A")
-        tags.addToPost(post, vegan)
+        tags.addToPost(post, vegan, at = 1L)
 
         posts.delete(post, at = 5L)
         db.recentlyDeletedDao().restore(post)

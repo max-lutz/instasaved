@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PostTag::class,
         DeletedPostTrace::class,
     ],
-    version = 7,
+    version = 8,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun postDao(): PostDao
@@ -28,8 +28,15 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun recentlyDeletedDao(): RecentlyDeletedDao
 
     companion object {
-        val MIGRATIONS =
-            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+        val MIGRATIONS = arrayOf(
+            MIGRATION_1_2,
+            MIGRATION_2_3,
+            MIGRATION_3_4,
+            MIGRATION_4_5,
+            MIGRATION_5_6,
+            MIGRATION_6_7,
+            MIGRATION_7_8,
+        )
 
         fun open(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "instasaved.db")
@@ -130,5 +137,13 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("CREATE TABLE `deleted_post_traces` (`shortcode` TEXT NOT NULL, PRIMARY KEY(`shortcode`))")
+    }
+}
+
+/** Adds each Post's modified date. No change was dated so far, so it starts at the date the Post was added. */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `posts` ADD COLUMN `modifiedAt` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("UPDATE `posts` SET `modifiedAt` = `addedAt`")
     }
 }

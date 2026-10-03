@@ -35,6 +35,10 @@ import com.maxlutz.instasaved.data.updateText
 import com.maxlutz.instasaved.deleted.PurgeWorker
 import com.maxlutz.instasaved.deleted.RecentlyDeletedScreen
 import com.maxlutz.instasaved.detail.PostDetailScreen
+import com.maxlutz.instasaved.grid.AllScreen
+import com.maxlutz.instasaved.grid.Browse
+import com.maxlutz.instasaved.grid.Browsing
+import com.maxlutz.instasaved.grid.PostSort
 import com.maxlutz.instasaved.grid.ToSortScreen
 import com.maxlutz.instasaved.share.PostLink
 import com.maxlutz.instasaved.share.ShareIn
@@ -83,8 +87,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 val collections by database.collectionDao().observeAll().collectAsState(initial = emptyList())
+                val all by database.postDao().observeAll().collectAsState(initial = emptyList())
                 val toSort by database.postDao().observeToSort().collectAsState(initial = emptyList())
                 val tags by database.tagDao().observeAll().collectAsState(initial = emptyList())
+                val postTags by database.tagDao().observePostTags().collectAsState(initial = emptyList())
                 val deleted by database.recentlyDeletedDao().observe().collectAsState(initial = emptyList())
                 val allTags = tags.map { it.tag }
                 val withThumbnail by thumbnailStore.shortcodes.collectAsState()
@@ -93,6 +99,15 @@ class MainActivity : ComponentActivity() {
                 }
                 var view by rememberSaveable(stateSaver = View.Saver) { mutableStateOf<View>(View.Home) }
                 var openPostId by rememberSaveable { mutableStateOf<Long?>(null) }
+                // A search is for the view it was typed in, and is still there on coming back from a Post.
+                var query by rememberSaveable(view) { mutableStateOf("") }
+                var sort by rememberSaveable { mutableStateOf(PostSort.Saved) }
+                var groupByTag by rememberSaveable { mutableStateOf(false) }
+                val browsing = Browsing(Browse(query, sort, groupByTag), allTags, postTags) {
+                    query = it.query
+                    sort = it.sort
+                    groupByTag = it.groupByTag
+                }
                 val snackbar = remember { SnackbarHostState() }
                 val deletedMessage = stringResource(R.string.post_deleted)
                 val undoLabel = stringResource(R.string.undo)
@@ -107,9 +122,11 @@ class MainActivity : ComponentActivity() {
                 when (val id = openPostId) {
                     null -> when (val shown = view) {
                         View.Home -> CollectionsScreen(
+                            allCount = all.size,
                             toSortCount = toSort.size,
                             collections = collections,
                             snackbar = snackbar,
+                            onOpenAll = { view = View.All },
                             onOpenToSort = { view = View.ToSort },
                             onOpenCollection = { view = View.InCollection(it.id) },
                             onCreate = { createCollection(it, onNameTaken = showNameTaken) },
@@ -137,11 +154,23 @@ class MainActivity : ComponentActivity() {
                                 onEmpty = { lifecycleScope.launch { recentlyDeleted.empty() } },
                             )
                         }
+                        View.All -> {
+                            BackHandler { view = View.Home }
+                            AllScreen(
+                                all,
+                                thumbnailOf,
+                                browsing,
+                                snackbar,
+                                onBack = { view = View.Home },
+                                onOpen = openPost,
+                            )
+                        }
                         View.ToSort -> {
                             BackHandler { view = View.Home }
                             ToSortScreen(
                                 toSort,
                                 thumbnailOf,
+                                browsing,
                                 snackbar,
                                 onBack = { view = View.Home },
                                 onOpen = openPost,
@@ -158,6 +187,7 @@ class MainActivity : ComponentActivity() {
                                     collection = it,
                                     posts = posts,
                                     thumbnailOf = thumbnailOf,
+                                    browsing = browsing,
                                     otherNames = collections.map { c -> c.collection.name } - it.name,
                                     snackbar = snackbar,
                                     onBack = { view = View.Home },
@@ -190,9 +220,7 @@ class MainActivity : ComponentActivity() {
                                 it,
                                 collections = collections.map { c -> c.collection },
                                 onTextChange = ::saveText,
-                                onCollectionChange = { collectionId ->
-                                    lifecycleScope.launch { database.postDao().setCollection(it.id, collectionId) }
-                                },
+                                onCollectionChange = { collectionId -> setCollection(it.id, collectionId) },
                                 onNewCollection = { collection ->
                                     createCollection(collection, onNameTaken = showNameTaken, thenAssign = it.id)
                                 },
@@ -257,7 +285,7 @@ class MainActivity : ComponentActivity() {
                 // The dialog already checks the name; this only fails if it was taken meanwhile.
                 val id = database.collectionDao().create(collection.name, collection.color, collection.note)
                     ?: return@withTransaction onNameTaken()
-                if (thenAssign != null) database.postDao().setCollection(thenAssign, id)
+                if (thenAssign != null) database.postDao().setCollection(thenAssign, id, at = now())
             }
         }
     }
@@ -268,23 +296,27 @@ class MainActivity : ComponentActivity() {
             database.withTransaction {
                 // The dialog already checks the name; this only fails if it was taken meanwhile.
                 val id = database.tagDao().create(tag.name, tag.color) ?: return@withTransaction onNameTaken()
-                if (thenAddTo != null) database.tagDao().addToPost(thenAddTo, id)
+                if (thenAddTo != null) database.tagDao().addToPost(thenAddTo, id, at = now())
             }
         }
     }
 
+    private fun setCollection(postId: Long, collectionId: Long?) {
+        lifecycleScope.launch { database.postDao().setCollection(postId, collectionId, at = now()) }
+    }
+
     // The picker stops offering a 5th Tag; the DAO refuses one anyway.
     private fun addTag(postId: Long, tag: Tag) {
-        lifecycleScope.launch { database.tagDao().addToPost(postId, tag.id) }
+        lifecycleScope.launch { database.tagDao().addToPost(postId, tag.id, at = now()) }
     }
 
     private fun removeTag(postId: Long, tag: Tag) {
-        lifecycleScope.launch { database.tagDao().removeFromPost(postId, tag.id) }
+        lifecycleScope.launch { database.tagDao().removeFromPost(postId, tag.id, at = now()) }
     }
 
     private fun saveText(post: Post) {
         lifecycleScope.launch(start = CoroutineStart.UNDISPATCHED) {
-            textSaves.withLock { database.postDao().updateText(post) }
+            textSaves.withLock { database.postDao().updateText(post, at = now()) }
         }
     }
 
@@ -336,12 +368,15 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private fun now() = System.currentTimeMillis()
+
 private const val QUICK_TAG_POST_ID = "quickTagPostId"
 private const val ADD_BACK_URL = "addBackUrl"
 
 /** Which list of Posts is shown under an opened Post. */
 private sealed interface View {
     data object Home : View
+    data object All : View
     data object ToSort : View
     data object RecentlyDeleted : View
     data class InCollection(val id: Long) : View
@@ -350,6 +385,7 @@ private sealed interface View {
         val Saver = Saver<View, Long>(
             save = {
                 when (it) {
+                    All -> -3L
                     RecentlyDeleted -> -2L
                     Home -> -1L
                     ToSort -> 0L
@@ -359,6 +395,7 @@ private sealed interface View {
             // Collection ids start at 1.
             restore = {
                 when (it) {
+                    -3L -> All
                     -2L -> RecentlyDeleted
                     -1L -> Home
                     0L -> ToSort

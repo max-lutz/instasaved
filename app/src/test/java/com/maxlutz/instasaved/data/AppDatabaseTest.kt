@@ -53,7 +53,7 @@ class AppDatabaseTest {
         val id = db.postDao().insert(Post(shortcode = "ABC123", url = "https://www.instagram.com/p/ABC123/", addedAt = 1L))
         val edited = db.postDao().get("ABC123")!!.editDescription("Hello. World").editTitle("Mine").editPostNote("note")
 
-        db.postDao().updateText(edited)
+        db.postDao().updateText(edited, at = 1L)
 
         val stored = db.postDao().get("ABC123")!!
         assertEquals(edited, stored)
@@ -68,9 +68,34 @@ class AppDatabaseTest {
         val loaded = db.postDao().get("ABC123")!!
         db.postDao().delete(id, at = 9L)
 
-        db.postDao().updateText(loaded.editPostNote("late keystroke"))
+        db.postDao().updateText(loaded.editPostNote("late keystroke"), at = 1L)
 
         assertEquals(9L, db.postDao().get("ABC123")?.deletedAt)
+    }
+
+    @Test
+    fun aPostIsModifiedWhenAddedThenWhenItsTextOrCollectionChanges() = runTest {
+        val id = db.postDao().insert(Post(shortcode = "ABC123", url = "https://www.instagram.com/p/ABC123/", addedAt = 1L))
+        val added = db.postDao().get("ABC123")!!
+
+        db.postDao().updateText(added.editPostNote("note"), at = 5L)
+        val edited = db.postDao().get("ABC123")!!
+        db.postDao().setCollection(id, db.collectionDao().create("Recipes", PALETTE[0]), at = 8L)
+        val moved = db.postDao().get("ABC123")!!
+
+        assertEquals(listOf(1L, 5L, 8L), listOf(added, edited, moved).map { it.modifiedAt })
+        assertEquals(1L, moved.addedAt)
+    }
+
+    @Test
+    fun allPostsAreListedNewestFirstWithoutTheRecentlyDeletedOnes() = runTest {
+        val ids = listOf("A" to 1L, "B" to 3L, "C" to 2L, "D" to 4L).map { (shortcode, addedAt) ->
+            db.postDao().insert(Post(shortcode = shortcode, url = "https://www.instagram.com/p/$shortcode/", addedAt = addedAt))
+        }
+        db.postDao().setCollection(ids[0], db.collectionDao().create("Recipes", PALETTE[0]), at = 9L)
+        db.postDao().delete(ids[3], at = 9L)
+
+        assertEquals(listOf("B", "C", "A"), db.postDao().observeAll().first().map { it.shortcode })
     }
 
     @Test

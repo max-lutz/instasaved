@@ -23,6 +23,7 @@ import com.maxlutz.instasaved.R
 import com.maxlutz.instasaved.data.Collection
 import com.maxlutz.instasaved.data.PALETTE
 import com.maxlutz.instasaved.data.Post
+import com.maxlutz.instasaved.grid.Browsing
 import com.maxlutz.instasaved.grid.PostGridScreen
 import java.io.File
 
@@ -32,6 +33,7 @@ fun CollectionScreen(
     collection: Collection,
     posts: List<Post>,
     thumbnailOf: (Post) -> File?,
+    browsing: Browsing,
     otherNames: List<String>,
     snackbar: SnackbarHostState,
     onBack: () -> Unit,
@@ -69,6 +71,7 @@ fun CollectionScreen(
                 )
             }
         },
+        browsing = browsing,
     )
 
     if (editing) {
@@ -108,6 +111,7 @@ private fun CollectionScreenPreview() {
             collection = Collection(1, "🍝 Pasta", PALETTE[0], "Weeknight dinners, nothing over 30 minutes."),
             posts = listOf(Post(id = 1, shortcode = "C1a2B3c4D5e", url = "", addedAt = 0, title = "Carbonara")),
             thumbnailOf = { null },
+            browsing = Browsing(),
             otherNames = emptyList(),
             snackbar = remember { SnackbarHostState() },
             onBack = {},

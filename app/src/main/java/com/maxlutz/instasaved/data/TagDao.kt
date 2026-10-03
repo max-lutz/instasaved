@@ -28,6 +28,10 @@ abstract class TagDao {
     )
     abstract fun observeOnPost(postId: Long): Flow<List<Tag>>
 
+    /** Which Tags are on which Posts, for grouping a view by Tag. */
+    @Query("SELECT * FROM post_tags")
+    abstract fun observePostTags(): Flow<List<PostTag>>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     protected abstract suspend fun insert(tag: Tag): Long
 
@@ -50,18 +54,29 @@ abstract class TagDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     protected abstract suspend fun insert(postTag: PostTag): Long
 
+    @Query("DELETE FROM post_tags WHERE postId = :postId AND tagId = :tagId")
+    protected abstract suspend fun delete(postId: Long, tagId: Long): Int
+
+    @Query("UPDATE posts SET modifiedAt = :at WHERE id = :postId")
+    protected abstract suspend fun setPostModified(postId: Long, at: Long)
+
     /**
      * Puts the Tag on the Post. Returns false, changing nothing, if the Post already carries [MAX_TAGS_PER_POST]
      * other Tags; a Tag the Post already has counts as added.
      */
     @Transaction
-    open suspend fun addToPost(postId: Long, tagId: Long): Boolean {
+    open suspend fun addToPost(postId: Long, tagId: Long, at: Long): Boolean {
         if (insert(PostTag(postId, tagId)) == -1L) return true
-        if (countOnPost(postId) <= MAX_TAGS_PER_POST) return true
-        removeFromPost(postId, tagId)
-        return false
+        if (countOnPost(postId) > MAX_TAGS_PER_POST) {
+            delete(postId, tagId)
+            return false
+        }
+        setPostModified(postId, at)
+        return true
     }
 
-    @Query("DELETE FROM post_tags WHERE postId = :postId AND tagId = :tagId")
-    abstract suspend fun removeFromPost(postId: Long, tagId: Long)
+    @Transaction
+    open suspend fun removeFromPost(postId: Long, tagId: Long, at: Long) {
+        if (delete(postId, tagId) == 1) setPostModified(postId, at)
+    }
 }
