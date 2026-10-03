@@ -11,12 +11,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,11 +43,17 @@ import com.maxlutz.instasaved.grid.AllScreen
 import com.maxlutz.instasaved.grid.Browse
 import com.maxlutz.instasaved.grid.Browsing
 import com.maxlutz.instasaved.grid.PostSort
+import com.maxlutz.instasaved.grid.SearchScreen
 import com.maxlutz.instasaved.grid.ToSortScreen
+import com.maxlutz.instasaved.more.MoreScreen
 import com.maxlutz.instasaved.share.PostLink
 import com.maxlutz.instasaved.share.ShareIn
 import com.maxlutz.instasaved.tags.TagPickerDialog
+import com.maxlutz.instasaved.tags.TagsScreen
 import com.maxlutz.instasaved.thumbnails.ThumbnailWorker
+import com.maxlutz.instasaved.ui.BottomBar
+import com.maxlutz.instasaved.ui.InstaSavedTheme
+import com.maxlutz.instasaved.ui.Tab
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -108,7 +114,7 @@ class MainActivity : ComponentActivity() {
         // Also on opening the app, so that Recently deleted never shows a Post past its 30 days.
         lifecycleScope.launch { recentlyDeleted.purgeExpired() }
         setContent {
-            MaterialTheme {
+            InstaSavedTheme {
                 val collections by database.collectionDao().observeAll().collectAsState(initial = emptyList())
                 val all by database.postDao().observeAll().collectAsState(initial = emptyList())
                 val toSort by database.postDao().observeToSort().collectAsState(initial = emptyList())
@@ -122,14 +128,26 @@ class MainActivity : ComponentActivity() {
                 }
                 var view by rememberSaveable(stateSaver = View.Saver) { mutableStateOf<View>(View.Home) }
                 var openPostId by rememberSaveable { mutableStateOf<Long?>(null) }
-                // A search is for the view it was typed in, and is still there on coming back from a Post.
-                var query by rememberSaveable(view) { mutableStateOf("") }
+                // The search is still there on coming back from a Post, or from another screen.
+                var query by rememberSaveable { mutableStateOf("") }
                 var sort by rememberSaveable { mutableStateOf(PostSort.Saved) }
                 var groupByTag by rememberSaveable { mutableStateOf(false) }
-                val browsing = Browsing(Browse(query, sort, groupByTag), allTags, postTags) {
+                var tagId by rememberSaveable { mutableStateOf<Long?>(null) }
+                var groupCollectionsByTag by rememberSaveable { mutableStateOf(true) }
+                // A Tag deleted meanwhile no longer filters anything.
+                val shownTagId = tagId?.takeIf { id -> allTags.any { it.id == id } }
+                val browsing = Browsing(Browse(query, sort, groupByTag, shownTagId), allTags, postTags) {
                     query = it.query
                     sort = it.sort
                     groupByTag = it.groupByTag
+                    tagId = it.tagId
+                }
+                // The latest Thumbnails behind each cover of the home.
+                val covers = remember(all, withThumbnail) {
+                    all.groupBy { it.collectionId }.mapValues { (_, posts) -> posts.mapNotNull(thumbnailOf).take(4) }
+                }
+                val allCover = remember(all, withThumbnail) {
+                    all.asSequence().mapNotNull(thumbnailOf).take(4).toList()
                 }
                 val snackbar = remember { SnackbarHostState() }
                 val deletedMessage = stringResource(R.string.post_deleted)
@@ -141,41 +159,90 @@ class MainActivity : ComponentActivity() {
                     lifecycleScope.launch { snackbar.showSnackbar(tagNameTakenMessage) }
                 }
                 val openPost: (Post) -> Unit = { openPostId = it.id }
+                val bottomBar: @Composable (Tab) -> Unit = { tab ->
+                    BottomBar(tab, toSortCount = toSort.size) {
+                        view = when (it) {
+                            Tab.Collections -> View.Home
+                            Tab.ToSort -> View.ToSort
+                            Tab.Search -> View.Search
+                            Tab.More -> View.More
+                        }
+                    }
+                }
 
                 when (val id = openPostId) {
                     null -> when (val shown = view) {
                         View.Home -> CollectionsScreen(
                             allCount = all.size,
-                            toSortCount = toSort.size,
+                            allCover = allCover,
                             collections = collections,
+                            coverOf = { covers[it.id].orEmpty() },
                             snackbar = snackbar,
                             onOpenAll = { view = View.All },
-                            onOpenToSort = { view = View.ToSort },
                             onOpenCollection = { view = View.InCollection(it.id) },
                             onCreate = { createCollection(it, onNameTaken = showNameTaken) },
-                            tags = tags,
-                            onCreateTag = { createTag(it, onNameTaken = showTagNameTaken) },
-                            onSaveTag = { edited ->
-                                lifecycleScope.launch {
-                                    if (!database.tagDao().update(edited)) showTagNameTaken()
-                                }
-                            },
-                            recentlyDeletedCount = deleted.size,
-                            onOpenRecentlyDeleted = { view = View.RecentlyDeleted },
-                            onWriteBackup = {
-                                pickBackupDestination.launch("instasaved-backup-${LocalDate.now()}.json")
-                            },
-                            onRestoreBackup = { pickBackupFile.launch(arrayOf("*/*")) },
-                            onDesktopImport = { pickDesktopBackup.launch(arrayOf("*/*")) },
+                            bottomBar = { bottomBar(Tab.Collections) },
                         )
-                        View.RecentlyDeleted -> {
+                        View.ToSort -> {
                             BackHandler { view = View.Home }
+                            ToSortScreen(
+                                toSort,
+                                thumbnailOf,
+                                collections = collections.map { it.collection },
+                                snackbar = snackbar,
+                                now = remember(toSort) { System.currentTimeMillis() },
+                                onOpen = openPost,
+                                onFile = { post, collectionId -> setCollection(post.id, collectionId) },
+                                onNewCollection = { post, collection ->
+                                    createCollection(collection, onNameTaken = showNameTaken, thenAssign = post.id)
+                                },
+                                bottomBar = { bottomBar(Tab.ToSort) },
+                            )
+                        }
+                        View.Search -> {
+                            BackHandler { view = View.Home }
+                            SearchScreen(all, thumbnailOf, browsing, snackbar, onOpen = openPost) {
+                                bottomBar(Tab.Search)
+                            }
+                        }
+                        View.More -> {
+                            BackHandler { view = View.Home }
+                            MoreScreen(
+                                recentlyDeletedCount = deleted.size,
+                                tagCount = tags.size,
+                                snackbar = snackbar,
+                                onOpenRecentlyDeleted = { view = View.RecentlyDeleted },
+                                onOpenTags = { view = View.Tags },
+                                onWriteBackup = {
+                                    pickBackupDestination.launch("instasaved-backup-${LocalDate.now()}.json")
+                                },
+                                onRestoreBackup = { pickBackupFile.launch(arrayOf("*/*")) },
+                                onDesktopImport = { pickDesktopBackup.launch(arrayOf("*/*")) },
+                                bottomBar = { bottomBar(Tab.More) },
+                            )
+                        }
+                        View.Tags -> {
+                            BackHandler { view = View.More }
+                            TagsScreen(
+                                tags = tags,
+                                snackbar = snackbar,
+                                onBack = { view = View.More },
+                                onCreate = { createTag(it, onNameTaken = showTagNameTaken) },
+                                onSave = { edited ->
+                                    lifecycleScope.launch {
+                                        if (!database.tagDao().update(edited)) showTagNameTaken()
+                                    }
+                                },
+                            )
+                        }
+                        View.RecentlyDeleted -> {
+                            BackHandler { view = View.More }
                             RecentlyDeletedScreen(
                                 posts = deleted,
                                 thumbnailOf = thumbnailOf,
                                 snackbar = snackbar,
                                 now = remember(deleted) { System.currentTimeMillis() },
-                                onBack = { view = View.Home },
+                                onBack = { view = View.More },
                                 onRestore = {
                                     lifecycleScope.launch { database.recentlyDeletedDao().restore(it.id) }
                                 },
@@ -184,25 +251,7 @@ class MainActivity : ComponentActivity() {
                         }
                         View.All -> {
                             BackHandler { view = View.Home }
-                            AllScreen(
-                                all,
-                                thumbnailOf,
-                                browsing,
-                                snackbar,
-                                onBack = { view = View.Home },
-                                onOpen = openPost,
-                            )
-                        }
-                        View.ToSort -> {
-                            BackHandler { view = View.Home }
-                            ToSortScreen(
-                                toSort,
-                                thumbnailOf,
-                                browsing,
-                                snackbar,
-                                onBack = { view = View.Home },
-                                onOpen = openPost,
-                            )
+                            AllScreen(all, thumbnailOf, snackbar, onBack = { view = View.Home }, onOpen = openPost)
                         }
                         is View.InCollection -> {
                             BackHandler { view = View.Home }
@@ -215,7 +264,10 @@ class MainActivity : ComponentActivity() {
                                     collection = it,
                                     posts = posts,
                                     thumbnailOf = thumbnailOf,
-                                    browsing = browsing,
+                                    tags = allTags,
+                                    postTags = postTags,
+                                    groupByTag = groupCollectionsByTag,
+                                    onGroupByTagChange = { groupCollectionsByTag = it },
                                     otherNames = collections.map { c -> c.collection.name } - it.name,
                                     snackbar = snackbar,
                                     onBack = { view = View.Home },
@@ -247,6 +299,7 @@ class MainActivity : ComponentActivity() {
                             PostDetailScreen(
                                 it,
                                 collections = collections.map { c -> c.collection },
+                                onBack = { openPostId = null },
                                 onTextChange = ::saveText,
                                 onCollectionChange = { collectionId -> setCollection(it.id, collectionId) },
                                 onNewCollection = { collection ->
@@ -471,11 +524,14 @@ private const val QUICK_TAG_POST_ID = "quickTagPostId"
 private const val ADD_BACK_URL = "addBackUrl"
 private const val RESTORE_FROM = "restoreFrom"
 
-/** Which list of Posts is shown under an opened Post. */
+/** Which screen is shown under an opened Post: one of the bottom bar's four, or one reached from them. */
 private sealed interface View {
     data object Home : View
-    data object All : View
     data object ToSort : View
+    data object Search : View
+    data object More : View
+    data object All : View
+    data object Tags : View
     data object RecentlyDeleted : View
     data class InCollection(val id: Long) : View
 
@@ -483,6 +539,9 @@ private sealed interface View {
         val Saver = Saver<View, Long>(
             save = {
                 when (it) {
+                    Tags -> -6L
+                    More -> -5L
+                    Search -> -4L
                     All -> -3L
                     RecentlyDeleted -> -2L
                     Home -> -1L
@@ -493,6 +552,9 @@ private sealed interface View {
             // Collection ids start at 1.
             restore = {
                 when (it) {
+                    -6L -> Tags
+                    -5L -> More
+                    -4L -> Search
                     -3L -> All
                     -2L -> RecentlyDeleted
                     -1L -> Home

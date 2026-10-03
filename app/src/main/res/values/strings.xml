@@ -1,17 +1,27 @@
 <resources>
     <string name="app_name">InstaSaved</string>
-    <string name="all">All</string>
+    <string name="saved">Saved</string>
+    <string name="collections">Collections</string>
+    <string name="more">More</string>
+    <string name="all_posts">All posts</string>
     <string name="all_empty">No Posts yet.
 Share a post from Instagram to add it.</string>
     <string name="search">Search</string>
+    <string name="search_hint">Search Title, Description, Post Note</string>
     <string name="clear">Clear</string>
     <string name="search_no_match">No Posts match your search.</string>
-    <string name="sort">Sort</string>
+    <string name="sort_by">Sort: %1$s</string>
     <string name="sort_saved">Saved date</string>
     <string name="sort_modified">Modified date</string>
     <string name="group_by_tag">Group by Tag</string>
     <string name="no_tag">No Tag</string>
     <string name="to_sort">To sort</string>
+    <plurals name="post_count">
+        <item quantity="one">%1$d Post</item>
+        <item quantity="other">%1$d Posts</item>
+    </plurals>
+    <string name="owner_and_added">%1$s · %2$s</string>
+    <string name="file">File</string>
     <string name="to_sort_empty">No posts to sort.
 Share a post from Instagram to add it.</string>
     <string name="share_in_added">Added to To sort</string>
@@ -21,11 +31,11 @@ Share a post from Instagram to add it.</string>
     <string name="share_in_add_back">Add it back?</string>
     <string name="add_back">Add it back</string>
     <string name="share_in_restored">Restored from Recently deleted</string>
-    <string name="post_detail_untitled">Untitled</string>
     <string name="title">Title</string>
-    <string name="title_follows_description">Follows the Description until you edit it</string>
     <string name="description">Description</string>
     <string name="post_note">Post Note</string>
+    <string name="post_note_hint">Why did you save this?</string>
+    <string name="has_post_note">Has a Post Note</string>
     <string name="open_in_instagram">Open in Instagram</string>
     <string name="nothing_can_open_link">No app can open this link</string>
     <string name="delete">Delete</string>
@@ -37,6 +47,7 @@ Share a post from Instagram to add it.</string>
     <string name="cancel">Cancel</string>
     <string name="no_collections">No Collections yet. Create one to sort your Posts into.</string>
     <string name="new_collection">New Collection</string>
+    <string name="add_collection">+ Collection</string>
     <string name="new_collection_ellipsis">New Collection…</string>
     <string name="edit_collection">Edit Collection</string>
     <string name="collection_name">Name</string>
@@ -61,8 +72,7 @@ Open a Post to put it here.</string>
     <string name="tag_name_taken">Another Tag already has this name</string>
     <string name="no_tags">No Tags yet.</string>
     <string name="max_tags_per_post">Up to %1$d Tags per Post</string>
-    <string name="add_tags">Add Tags</string>
-    <string name="edit_tags">Edit Tags</string>
+    <string name="add_tag">+ Tag</string>
     <string name="done">Done</string>
     <string name="share_in_tag_it">Tag it now?</string>
     <string name="recently_deleted">Recently deleted</string>
@@ -73,13 +83,16 @@ Open a Post to put it here.</string>
         <item quantity="one">Restore this Post? It leaves Recently deleted for good in %1$d day.</item>
         <item quantity="other">Restore this Post? It leaves Recently deleted for good in %1$d days.</item>
     </plurals>
+    <plurals name="days_left">
+        <item quantity="one">%1$d day left</item>
+        <item quantity="other">%1$d days left</item>
+    </plurals>
     <string name="empty_now">Empty now</string>
     <string name="empty_now_title">Empty Recently deleted?</string>
     <plurals name="empty_now_posts">
         <item quantity="one">%1$d Post is removed for good, with its notes and Tags. Sync won\'t bring it back.</item>
         <item quantity="other">%1$d Posts are removed for good, with their notes and Tags. Sync won\'t bring them back.</item>
     </plurals>
-    <string name="backup">Backup</string>
     <string name="backup_write">Back up to a file…</string>
     <string name="backup_restore">Restore from a backup file…</string>
     <string name="backup_written">Backup saved</string>

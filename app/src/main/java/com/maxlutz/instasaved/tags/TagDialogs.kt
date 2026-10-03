@@ -33,6 +33,7 @@ import com.maxlutz.instasaved.data.PALETTE
 import com.maxlutz.instasaved.data.Tag
 import com.maxlutz.instasaved.data.nextColor
 import com.maxlutz.instasaved.data.sameName
+import com.maxlutz.instasaved.ui.InstaSavedTheme
 
 /** A Tag as a pill in its color. */
 @Composable
@@ -175,7 +176,7 @@ fun TagPickerDialog(
 @Composable
 private fun TagPickerDialogPreview() {
     val tags = listOf(Tag(1, "Quick", PALETTE[1]), Tag(2, "Vegan", PALETTE[3]), Tag(3, "Weekend", PALETTE[5]))
-    MaterialTheme {
+    InstaSavedTheme {
         TagPickerDialog(
             title = "Added to To sort",
             message = "Tag it now?",

@@ -27,17 +27,23 @@ data class PostGroup(val tag: Tag?, val posts: List<Post>)
  * How the user is looking at a view of Posts.
  *
  * @property query what to search Title, Description and Post Note for; blank shows every Post.
+ * @property tagId the Tag the Posts shown must carry; null shows them whatever their Tags.
  */
-data class Browse(val query: String = "", val sort: PostSort = PostSort.Saved, val groupByTag: Boolean = false) {
+data class Browse(
+    val query: String = "",
+    val sort: PostSort = PostSort.Saved,
+    val groupByTag: Boolean = false,
+    val tagId: Long? = null,
+) {
     /**
-     * The [posts] matching [query], sorted, in the groups to show them in; no group is empty. Grouped by Tag,
+     * The [posts] carrying [tagId] and matching [query], sorted, in the groups to show them in; no group is empty. Grouped by Tag,
      * the groups follow the order of [tags], then comes the one for Posts without a Tag, and a Post is in the
      * group of each of its Tags.
      */
     fun arrange(posts: List<Post>, tags: List<Tag>, postTags: List<PostTag>): List<PostGroup> {
-        val found = posts.search(query).sorted(sort)
+        val tagIdsOf = postTags.groupBy({ it.postId }, { it.tagId })
+        val found = posts.filter { tagId == null || tagId in tagIdsOf[it.id].orEmpty() }.search(query).sorted(sort)
         val groups = if (groupByTag) {
-            val tagIdsOf = postTags.groupBy({ it.postId }, { it.tagId })
             tags.map { tag -> PostGroup(tag, found.filter { tag.id in tagIdsOf[it.id].orEmpty() }) } +
                 PostGroup(null, found.filter { it.id !in tagIdsOf })
         } else {
