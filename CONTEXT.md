@@ -41,7 +41,7 @@ A reusable, user-defined label (a name plus a color from the shared palette). A 
 _Avoid_: Category, label, hashtag
 
 **Export**:
-The ZIP that Instagram's "Export your information" writes to the user's Google Drive on a daily schedule, containing all saved posts and Instagram Collections as JSON. The only automatic source of saved posts.
+The folder that Instagram's "Export your information" writes to the user's Google Drive on a daily schedule, containing all saved posts and Instagram Collections as JSON. The only automatic source of saved posts.
 _Avoid_: Download, dump, backup (Backup is the app's own data)
 
 **Sync**:

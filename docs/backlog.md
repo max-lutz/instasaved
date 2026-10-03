@@ -27,7 +27,7 @@ Download on Post creation (`/media/?size=m`, fallback `og:image`), store bytes i
 - Blocked by: 2
 
 ## 7. Export parser
-Pure Kotlin: Export ZIP → `ExportedPost` list. Text repair, shortcode extraction. Tested against real fixtures from the first Export (needs the user's sample).
+Pure Kotlin: an Export's JSON files → `ExportedPost` list. Text repair, shortcode extraction. Tested against anonymized fixtures from the first real Exports.
 - Blocked by: 1 · needs a real Export sample
 
 ## 8. Sync rules engine
