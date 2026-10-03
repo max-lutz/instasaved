@@ -4,6 +4,7 @@ import android.app.Application
 import com.maxlutz.instasaved.backup.Backups
 import com.maxlutz.instasaved.data.AppDatabase
 import com.maxlutz.instasaved.deleted.RecentlyDeleted
+import com.maxlutz.instasaved.desktop.DesktopImport
 import com.maxlutz.instasaved.thumbnails.InstagramThumbnails
 import com.maxlutz.instasaved.thumbnails.ThumbnailDownloader
 import com.maxlutz.instasaved.thumbnails.ThumbnailStore
@@ -19,6 +20,8 @@ class InstaSavedApplication : Application() {
     val recentlyDeleted: RecentlyDeleted by lazy { RecentlyDeleted(database.recentlyDeletedDao(), thumbnailStore) }
 
     val backups: Backups by lazy { Backups(database.backupDao(), thumbnailStore) }
+
+    val desktopImport: DesktopImport by lazy { DesktopImport(database.desktopImportDao()) }
 
     val thumbnailDownloader: ThumbnailDownloader by lazy {
         val instagram = InstagramThumbnails(UrlConnectionHttp)

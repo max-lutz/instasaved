@@ -90,4 +90,7 @@ Open a Post to put it here.</string>
     <string name="backup_not_a_backup">Not an InstaSaved backup file. Nothing was changed.</string>
     <string name="backup_from_newer_app">This Backup comes from a newer version of the app. Update the app to restore it.</string>
     <string name="backup_read_failed">Could not read the file. Nothing was changed.</string>
+    <string name="desktop_import">Import from Socials Organizer…</string>
+    <string name="desktop_import_done">Desktop Import done: %1$d Posts added, %2$d completed, %3$d skipped</string>
+    <string name="desktop_import_not_a_backup">Not a Socials Organizer v6 backup file. Nothing was changed.</string>
 </resources>

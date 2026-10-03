@@ -37,6 +37,7 @@ import com.maxlutz.instasaved.data.Tag
 import com.maxlutz.instasaved.data.updateText
 import com.maxlutz.instasaved.deleted.PurgeWorker
 import com.maxlutz.instasaved.deleted.RecentlyDeletedScreen
+import com.maxlutz.instasaved.desktop.DesktopBackupFormatException
 import com.maxlutz.instasaved.detail.PostDetailScreen
 import com.maxlutz.instasaved.grid.AllScreen
 import com.maxlutz.instasaved.grid.Browse
@@ -60,6 +61,7 @@ class MainActivity : ComponentActivity() {
     private val thumbnailStore by lazy { (application as InstaSavedApplication).thumbnailStore }
     private val recentlyDeleted by lazy { (application as InstaSavedApplication).recentlyDeleted }
     private val backups by lazy { (application as InstaSavedApplication).backups }
+    private val desktopImport by lazy { (application as InstaSavedApplication).desktopImport }
     private val shareIn by lazy { ShareIn(database.postDao(), database.recentlyDeletedDao()) }
 
     // Text is saved on every keystroke; the lock keeps the saves in typing order.
@@ -80,6 +82,9 @@ class MainActivity : ComponentActivity() {
     // Any type: file managers do not agree on what a .json file is.
     private val pickBackupFile =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> restoreFrom = uri } }
+
+    private val pickDesktopBackup =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(::importDesktopBackup) }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
@@ -161,6 +166,7 @@ class MainActivity : ComponentActivity() {
                                 pickBackupDestination.launch("instasaved-backup-${LocalDate.now()}.json")
                             },
                             onRestoreBackup = { pickBackupFile.launch(arrayOf("*/*")) },
+                            onDesktopImport = { pickDesktopBackup.launch(arrayOf("*/*")) },
                         )
                         View.RecentlyDeleted -> {
                             BackHandler { view = View.Home }
@@ -345,6 +351,25 @@ class MainActivity : ComponentActivity() {
                 if (e.fromNewerApp) R.string.backup_from_newer_app else R.string.backup_not_a_backup
             } catch (_: IOException) {
                 R.string.backup_read_failed
+            }
+            Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** Adds the Socials Organizer backup to what the app holds, or tells why nothing was changed. */
+    private fun importDesktopBackup(from: Uri) {
+        lifecycleScope.launch {
+            val message = try {
+                val summary = desktopImport.import(
+                    contentResolver.openInputStream(from) ?: throw IOException("No stream for $from"),
+                )
+                // The desktop app has no Thumbnails.
+                ThumbnailWorker.downloadNow(this@MainActivity)
+                getString(R.string.desktop_import_done, summary.added, summary.completed, summary.skipped)
+            } catch (_: DesktopBackupFormatException) {
+                getString(R.string.desktop_import_not_a_backup)
+            } catch (_: IOException) {
+                getString(R.string.backup_read_failed)
             }
             Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
         }
