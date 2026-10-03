@@ -41,11 +41,11 @@ A reusable, user-defined label (a name plus a color from the shared palette). A 
 _Avoid_: Category, label, hashtag
 
 **Export**:
-The folder that Instagram's "Export your information" writes to the user's Google Drive on a daily schedule, containing all saved posts and Instagram Collections as JSON. The only automatic source of saved posts.
+A folder that Instagram's "Export your information" writes to the user's Google Drive on a daily schedule, as JSON. The first Export of a schedule contains all saved posts and Instagram Collections; each later one contains only the posts saved since the previous Export, without Instagram Collections. The only automatic source of saved posts.
 _Avoid_: Download, dump, backup (Backup is the app's own data)
 
 **Sync**:
-Reading the newest Export from Google Drive and applying it to the app's Posts according to the sync rules (`docs/sync-spec.md`). One direction only: Instagram → app.
+Reading the Exports in Google Drive that the app has not applied yet and applying them to the app's Posts according to the sync rules (`docs/sync-spec.md`). One direction only: Instagram → app. It only adds and updates: unsaving a post on Instagram changes nothing in the app.
 _Avoid_: Import (reserved for the one-time Desktop Import), refresh
 
 **Share-in**:
@@ -55,10 +55,6 @@ _Avoid_: Quick add, capture
 **New**:
 A marker on a Post that Sync added and the user hasn't opened yet. Cleared by opening the Post or by "Mark all as seen".
 _Avoid_: Unread, fresh
-
-**No longer saved**:
-A marker on a Post that appeared in an earlier Export but is missing from the latest one — the user unsaved it on Instagram. The Post is kept; the marker clears if it shows up in an Export again. Never applied to a Post that has never appeared in any Export (e.g. one added by Share-in).
-_Avoid_: Removed, orphan, unsaved post
 
 **Deleted Post**:
 A Post the user deleted in the app. Sync never brings it back. It first sits in Recently deleted, then is reduced to a trace keyed by shortcode.

@@ -31,19 +31,19 @@ Pure Kotlin: an Export's JSON files → `ExportedPost` list. Text repair, shortc
 - Blocked by: 1 · needs a real Export sample
 
 ## 8. Sync rules engine
-Pure function implementing `sync-spec.md` R1–R7 (incl. Placement and R3a) + S1, with every row of its test-case table as a unit test.
+Pure function implementing `sync-spec.md` R1–R6 (incl. Placement and R3a), with every row of its test-case table as a unit test.
 - Blocked by: 7
 
 ## 9. Drive connection + Sync now
-Connect Google Drive (`drive.readonly`), find the newest Export, download, run 7 + 8, apply in one transaction. "Sync now" button, sync status line, error states, "Apply anyway" on an S1 > 50% refusal.
+Connect Google Drive (`drive.readonly`), find the Exports not applied yet, and for each, oldest first: download, run 7 + 8, apply in one transaction. "Sync now" button, sync status line, error states.
 - Blocked by: 8, 4
 
 ## 10. Daily background Sync
 WorkManager periodic job (daily, needs network), stale-Export warning (> 3 days).
 - Blocked by: 9
 
-## 11. New / No longer saved / Sync Summary
-New marker (clears on open, "Mark all as seen"), No longer saved marker + view, dismissable Sync Summary.
+## 11. New / Sync Summary
+New marker (clears on open, "Mark all as seen"), dismissable Sync Summary.
 - Blocked by: 9
 
 ## 11b. Recently deleted

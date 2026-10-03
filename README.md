@@ -22,7 +22,7 @@ Instagram → Accounts Center → Your information and permissions → Export yo
 - Account: your Instagram account
 - **Export to external service → Google Drive** (connect your Google account)
 - Information: customize → **Saved** only
-- Date range: **All time** (required — Sync detects unsaved posts by comparing complete snapshots)
+- Date range: **All time** (the first Export then holds every saved post; later ones only the posts saved since)
 - Frequency: **Daily**
 - Format: **JSON**
 
