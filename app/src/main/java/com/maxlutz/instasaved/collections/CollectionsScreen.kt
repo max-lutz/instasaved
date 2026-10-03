@@ -42,7 +42,7 @@ import com.maxlutz.instasaved.tags.TagEditorDialog
 
 /**
  * The app's home: To sort, then every Collection alphabetically, each with its Post count, then every Tag the same
- * way. Tapping a Tag edits it.
+ * way, then Recently deleted. Tapping a Tag edits it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,6 +56,8 @@ fun CollectionsScreen(
     tags: List<TagWithCount>,
     onCreateTag: (Tag) -> Unit,
     onSaveTag: (Tag) -> Unit,
+    recentlyDeletedCount: Int,
+    onOpenRecentlyDeleted: () -> Unit,
 ) {
     var creating by rememberSaveable { mutableStateOf(false) }
     var creatingTag by rememberSaveable { mutableStateOf(false) }
@@ -127,6 +129,14 @@ fun CollectionsScreen(
                     modifier = Modifier.clickable { editingTagId = tag.id },
                 )
             }
+            item(key = "recently-deleted") {
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.recently_deleted)) },
+                    trailingContent = { Text(recentlyDeletedCount.toString()) },
+                    modifier = Modifier.clickable(onClick = onOpenRecentlyDeleted),
+                )
+            }
         }
     }
 
@@ -186,6 +196,8 @@ private fun CollectionsScreenPreview() {
             tags = listOf(TagWithCount(Tag(1, "Vegan", PALETTE[3]), 5)),
             onCreateTag = {},
             onSaveTag = {},
+            recentlyDeletedCount = 2,
+            onOpenRecentlyDeleted = {},
         )
     }
 }

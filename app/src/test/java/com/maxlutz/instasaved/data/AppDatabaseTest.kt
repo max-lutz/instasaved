@@ -80,7 +80,7 @@ class AppDatabaseTest {
         db.postDao().delete(id, at = 9L)
         assertEquals(emptyList<Post>(), db.postDao().observeToSort().first())
 
-        db.postDao().restore(id)
+        db.recentlyDeletedDao().restore(id)
         assertEquals(listOf("ABC123"), db.postDao().observeToSort().first().map { it.shortcode })
     }
 }

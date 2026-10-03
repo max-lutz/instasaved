@@ -164,4 +164,29 @@ class MigrationTest {
         assertNull(post.thumbnailFailedAt)
         assertEquals(post.copy(thumbnailFailures = 1, thumbnailFailedAt = 9), failed)
     }
+
+    @Test
+    fun migrates6To7KeepingDeletedPostsInRecentlyDeletedWithWorkingTraces() = runTest {
+        createDatabase(
+            6,
+            seed = listOf(
+                "INSERT INTO posts (shortcode, url, addedAt, seenInExport, title, titleHandEdited, description, " +
+                    "descriptionHandEdited, postNote, deletedAt, ownerUsername, ownerName, thumbnailFailures) VALUES " +
+                    "('ABC123', 'https://www.instagram.com/p/ABC123/', 7, 0, 'Hi', 0, 'Hi. There', 1, 'note', 9, '', '', 0)",
+            ),
+        )
+
+        val db = openMigrated()
+        val deleted = db.recentlyDeletedDao().observe().first()
+        val traceBefore = db.recentlyDeletedDao().hasTrace("ABC123")
+        db.recentlyDeletedDao().purge(deletedUpTo = 9)
+        val traceAfter = db.recentlyDeletedDao().hasTrace("ABC123")
+        val postAfter = db.postDao().get("ABC123")
+        db.close()
+
+        assertEquals(listOf("note"), deleted.map { it.postNote })
+        assertFalse(traceBefore)
+        assertEquals(true, traceAfter)
+        assertNull(postAfter)
+    }
 }

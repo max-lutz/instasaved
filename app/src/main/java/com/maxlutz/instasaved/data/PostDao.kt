@@ -51,13 +51,9 @@ interface PostDao {
         postNote: String,
     )
 
-    /** Moves the Post to Recently deleted (ADR-0012). */
+    /** Moves the Post to Recently deleted (ADR-0012). [RecentlyDeletedDao.restore] takes it back out. */
     @Query("UPDATE posts SET deletedAt = :at WHERE id = :id")
     suspend fun delete(id: Long, at: Long)
-
-    /** Takes the Post back out of Recently deleted. */
-    @Query("UPDATE posts SET deletedAt = NULL WHERE id = :id")
-    suspend fun restore(id: Long)
 
     /** Counts one more failed Thumbnail download. */
     @Query("UPDATE posts SET thumbnailFailures = thumbnailFailures + 1, thumbnailFailedAt = :at WHERE id = :id")

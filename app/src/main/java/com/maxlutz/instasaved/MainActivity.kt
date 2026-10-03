@@ -8,10 +8,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,8 +32,11 @@ import com.maxlutz.instasaved.data.Collection
 import com.maxlutz.instasaved.data.Post
 import com.maxlutz.instasaved.data.Tag
 import com.maxlutz.instasaved.data.updateText
+import com.maxlutz.instasaved.deleted.PurgeWorker
+import com.maxlutz.instasaved.deleted.RecentlyDeletedScreen
 import com.maxlutz.instasaved.detail.PostDetailScreen
 import com.maxlutz.instasaved.grid.ToSortScreen
+import com.maxlutz.instasaved.share.PostLink
 import com.maxlutz.instasaved.share.ShareIn
 import com.maxlutz.instasaved.tags.TagPickerDialog
 import com.maxlutz.instasaved.thumbnails.ThumbnailWorker
@@ -43,6 +49,8 @@ import java.io.File
 class MainActivity : ComponentActivity() {
     private val database by lazy { (application as InstaSavedApplication).database }
     private val thumbnailStore by lazy { (application as InstaSavedApplication).thumbnailStore }
+    private val recentlyDeleted by lazy { (application as InstaSavedApplication).recentlyDeleted }
+    private val shareIn by lazy { ShareIn(database.postDao(), database.recentlyDeletedDao()) }
 
     // Text is saved on every keystroke; the lock keeps the saves in typing order.
     private val textSaves = Mutex()
@@ -50,9 +58,13 @@ class MainActivity : ComponentActivity() {
     /** The Post just added by Share-in, offered for tagging on the spot. */
     private var quickTagPostId by mutableStateOf<Long?>(null)
 
+    /** The shared link of a Deleted Post, while the user is asked "Add it back?". */
+    private var addBackLink by mutableStateOf<PostLink?>(null)
+
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         quickTagPostId?.let { outState.putLong(QUICK_TAG_POST_ID, it) }
+        addBackLink?.let { outState.putString(ADD_BACK_URL, it.url) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -61,14 +73,19 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState?.containsKey(QUICK_TAG_POST_ID) == true) {
             quickTagPostId = savedInstanceState.getLong(QUICK_TAG_POST_ID)
         }
+        addBackLink = savedInstanceState?.getString(ADD_BACK_URL)?.let(PostLink::find)
         // Not on recreation (e.g. rotation): the share was already handled.
         if (savedInstanceState == null) handleShare(intent)
         ThumbnailWorker.scheduleRetries(this)
+        PurgeWorker.scheduleDaily(this)
+        // Also on opening the app, so that Recently deleted never shows a Post past its 30 days.
+        lifecycleScope.launch { recentlyDeleted.purgeExpired() }
         setContent {
             MaterialTheme {
                 val collections by database.collectionDao().observeAll().collectAsState(initial = emptyList())
                 val toSort by database.postDao().observeToSort().collectAsState(initial = emptyList())
                 val tags by database.tagDao().observeAll().collectAsState(initial = emptyList())
+                val deleted by database.recentlyDeletedDao().observe().collectAsState(initial = emptyList())
                 val allTags = tags.map { it.tag }
                 val withThumbnail by thumbnailStore.shortcodes.collectAsState()
                 val thumbnailOf: (Post) -> File? = {
@@ -103,7 +120,23 @@ class MainActivity : ComponentActivity() {
                                     if (!database.tagDao().update(edited)) showTagNameTaken()
                                 }
                             },
+                            recentlyDeletedCount = deleted.size,
+                            onOpenRecentlyDeleted = { view = View.RecentlyDeleted },
                         )
+                        View.RecentlyDeleted -> {
+                            BackHandler { view = View.Home }
+                            RecentlyDeletedScreen(
+                                posts = deleted,
+                                thumbnailOf = thumbnailOf,
+                                snackbar = snackbar,
+                                now = remember(deleted) { System.currentTimeMillis() },
+                                onBack = { view = View.Home },
+                                onRestore = {
+                                    lifecycleScope.launch { database.recentlyDeletedDao().restore(it.id) }
+                                },
+                                onEmpty = { lifecycleScope.launch { recentlyDeleted.empty() } },
+                            )
+                        }
                         View.ToSort -> {
                             BackHandler { view = View.Home }
                             ToSortScreen(
@@ -194,6 +227,25 @@ class MainActivity : ComponentActivity() {
                         onDismiss = { quickTagPostId = null },
                     )
                 }
+
+                addBackLink?.let { link ->
+                    AlertDialog(
+                        onDismissRequest = { addBackLink = null },
+                        title = { Text(stringResource(R.string.share_in_add_back_title)) },
+                        text = { Text(stringResource(R.string.share_in_add_back)) },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    addBackLink = null
+                                    lifecycleScope.launch { show(shareIn.addBack(link)) }
+                                },
+                            ) { Text(stringResource(R.string.add_back)) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { addBackLink = null }) { Text(stringResource(R.string.cancel)) }
+                        },
+                    )
+                }
             }
         }
     }
@@ -240,7 +292,7 @@ class MainActivity : ComponentActivity() {
     private fun delete(id: Long, askUndo: suspend () -> SnackbarResult) {
         lifecycleScope.launch {
             database.postDao().delete(id, at = System.currentTimeMillis())
-            if (askUndo() == SnackbarResult.ActionPerformed) database.postDao().restore(id)
+            if (askUndo() == SnackbarResult.ActionPerformed) database.recentlyDeletedDao().restore(id)
         }
     }
 
@@ -256,35 +308,49 @@ class MainActivity : ComponentActivity() {
     private fun handleShare(intent: Intent) {
         if (intent.action != Intent.ACTION_SEND) return
         val text = intent.getStringExtra(Intent.EXTRA_TEXT).orEmpty()
-        lifecycleScope.launch {
-            val message = when (val result = ShareIn(database.postDao()).receive(text)) {
-                // Said by the quick-tag step instead.
-                is ShareIn.Result.Added -> {
-                    ThumbnailWorker.downloadNow(this@MainActivity)
-                    quickTagPostId = result.post.id
-                    return@launch
-                }
-                is ShareIn.Result.AlreadySaved -> R.string.share_in_already_saved
-                is ShareIn.Result.PreviouslyDeleted -> R.string.share_in_previously_deleted
-                ShareIn.Result.NotAPostLink -> R.string.share_in_not_a_post_link
+        lifecycleScope.launch { show(shareIn.receive(text)) }
+    }
+
+    /** Tells the user what became of a share, or asks what is still theirs to decide. */
+    private fun show(result: ShareIn.Result) {
+        val message = when (result) {
+            // Said by the quick-tag step instead.
+            is ShareIn.Result.Added -> {
+                ThumbnailWorker.downloadNow(this)
+                quickTagPostId = result.post.id
+                return
             }
-            Toast.makeText(this@MainActivity, message, Toast.LENGTH_SHORT).show()
+            is ShareIn.Result.PreviouslyDeleted -> {
+                addBackLink = result.link
+                return
+            }
+            is ShareIn.Result.Restored -> {
+                // Usually it kept its Thumbnail; this covers the one that never got it.
+                ThumbnailWorker.downloadNow(this)
+                R.string.share_in_restored
+            }
+            is ShareIn.Result.AlreadySaved -> R.string.share_in_already_saved
+            ShareIn.Result.NotAPostLink -> R.string.share_in_not_a_post_link
         }
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 }
 
-/** Which list of Posts is shown under an opened Post. */
 private const val QUICK_TAG_POST_ID = "quickTagPostId"
+private const val ADD_BACK_URL = "addBackUrl"
 
+/** Which list of Posts is shown under an opened Post. */
 private sealed interface View {
     data object Home : View
     data object ToSort : View
+    data object RecentlyDeleted : View
     data class InCollection(val id: Long) : View
 
     companion object {
         val Saver = Saver<View, Long>(
             save = {
                 when (it) {
+                    RecentlyDeleted -> -2L
                     Home -> -1L
                     ToSort -> 0L
                     is InCollection -> it.id
@@ -293,6 +359,7 @@ private sealed interface View {
             // Collection ids start at 1.
             restore = {
                 when (it) {
+                    -2L -> RecentlyDeleted
                     -1L -> Home
                     0L -> ToSort
                     else -> InCollection(it)

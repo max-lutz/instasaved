@@ -8,8 +8,15 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [Post::class, Collection::class, CollectionDeletion::class, Tag::class, PostTag::class],
-    version = 6,
+    entities = [
+        Post::class,
+        Collection::class,
+        CollectionDeletion::class,
+        Tag::class,
+        PostTag::class,
+        DeletedPostTrace::class,
+    ],
+    version = 7,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun postDao(): PostDao
@@ -18,8 +25,11 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun tagDao(): TagDao
 
+    abstract fun recentlyDeletedDao(): RecentlyDeletedDao
+
     companion object {
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+        val MIGRATIONS =
+            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
 
         fun open(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "instasaved.db")
@@ -113,5 +123,12 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
             "`thumbnailFailures` INTEGER NOT NULL DEFAULT 0",
             "`thumbnailFailedAt` INTEGER",
         ).forEach { db.execSQL("ALTER TABLE `posts` ADD COLUMN $it") }
+    }
+}
+
+/** Adds the traces of Deleted Posts. None yet: every Deleted Post is still whole, in Recently deleted. */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE `deleted_post_traces` (`shortcode` TEXT NOT NULL, PRIMARY KEY(`shortcode`))")
     }
 }

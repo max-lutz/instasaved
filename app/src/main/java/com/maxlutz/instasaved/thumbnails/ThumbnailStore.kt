@@ -33,6 +33,12 @@ class ThumbnailStore(private val directory: File) {
         saved.update { it + shortcode }
     }
 
+    /** Removes the Post's Thumbnail, if it has one. */
+    fun delete(shortcode: String) {
+        file(shortcode).delete()
+        saved.update { it - shortcode }
+    }
+
     private companion object {
         // Shortcodes never contain a dot.
         const val PARTIAL = ".part"

@@ -213,7 +213,7 @@ class TagsTest {
         tags.addToPost(post, vegan)
 
         posts.delete(post, at = 5L)
-        posts.restore(post)
+        db.recentlyDeletedDao().restore(post)
 
         assertEquals(listOf("Vegan"), tagsOf(post))
     }
