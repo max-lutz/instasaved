@@ -46,7 +46,7 @@ import com.maxlutz.instasaved.tags.TagEditorDialog
 /**
  * The app's home: All, To sort, then every Collection alphabetically, each with its Post count, then every Tag the
  * same way, then Recently deleted. Tapping a Tag edits it. The Backup menu writes and restores the manual backup
- * file.
+ * file, and starts the Desktop Import.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +66,7 @@ fun CollectionsScreen(
     onOpenRecentlyDeleted: () -> Unit,
     onWriteBackup: () -> Unit,
     onRestoreBackup: () -> Unit,
+    onDesktopImport: () -> Unit,
 ) {
     var creating by rememberSaveable { mutableStateOf(false) }
     var creatingTag by rememberSaveable { mutableStateOf(false) }
@@ -92,6 +93,13 @@ fun CollectionsScreen(
                                 onClick = {
                                     backupMenuOpen = false
                                     onRestoreBackup()
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.desktop_import)) },
+                                onClick = {
+                                    backupMenuOpen = false
+                                    onDesktopImport()
                                 },
                             )
                         }
@@ -243,6 +251,7 @@ private fun CollectionsScreenPreview() {
             onOpenRecentlyDeleted = {},
             onWriteBackup = {},
             onRestoreBackup = {},
+            onDesktopImport = {},
         )
     }
 }
