@@ -207,7 +207,7 @@ class CollectionsTest {
         posts.delete(post, at = 9L)
 
         collections.deleteKeepingPosts(recipes)
-        posts.restore(post)
+        db.recentlyDeletedDao().restore(post)
 
         assertEquals(listOf("A"), toSort())
     }
