@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>InstaSaved UI mockup (PROTOTYPE)</title>
+<!--
+  PROTOTYPE for issue #16 (UI mockup). Throwaway: not production code, nothing here ships.
+  Three variants of the app's home and Post details, switchable via ?variant=A|B|C (or the arrow keys),
+  Verdict: B is the agreed mockup (it opens by default); A and C are kept as the alternatives considered.
+  All data is made up and lives in memory; reloading resets it.
+  Deep links for sharing a state: &go=collection/1, &go=tosort, &go=deleted, &go=triage, &post=5
+-->
+<style>
+:root{
+  --bg:#fff;--fg:#111;--muted:#737373;--line:#dbdbdb;--surface:#f2f2f2;--accent:#0095f6;--danger:#d93025;
+  --page:#e9e9ee;--warn-bg:#fff4e0;--warn-fg:#8a5a00;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#000;--fg:#f5f5f5;--muted:#a8a8a8;--line:#262626;--surface:#1c1c1e;--accent:#3ea6ff;--danger:#ff6b60;
+  --page:#161618;--warn-bg:#3a2c10;--warn-fg:#ffcf7a;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--fg);font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+main{display:flex;gap:32px;justify-content:center;align-items:flex-start;padding:24px 16px 96px}
+.phone{width:390px;height:780px;flex:none;position:relative;overflow:hidden;background:var(--bg);border-radius:36px;
+  box-shadow:0 0 0 10px #1b1b1f,0 20px 50px rgba(0,0,0,.3)}
+aside{max-width:340px;padding-top:8px}
+aside h1{font-size:20px;margin:0 0 4px}
+aside p{color:var(--muted);margin:0 0 16px}
+aside dl{margin:0}
+aside dt{font-weight:600;margin-top:12px}
+aside dd{margin:2px 0 0;color:var(--muted)}
+aside .state{margin-top:20px;padding:10px 12px;border-radius:8px;background:var(--bg);font:12px/1.5 ui-monospace,Consolas,monospace}
+
+.screen{position:absolute;inset:0;display:flex;flex-direction:column}
+.body{flex:1;overflow-y:auto;scrollbar-width:none}
+.bar{display:flex;align-items:center;gap:10px;padding:12px 14px;min-height:52px;flex:none}
+.bar .grow{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.logo{font-size:22px;font-weight:700;letter-spacing:-.5px;font-style:italic}
+.h{font-size:17px;font-weight:700}
+.ic{font-size:22px;width:32px;height:32px;line-height:1}
+.sync{font-size:12px;color:var(--muted)}
+.sync::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#3bb273;margin-right:5px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none}
+.muted{color:var(--muted)}
+.pad{padding:8px 14px}
+
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}
+.t{position:relative;aspect-ratio:1;display:block;width:100%;overflow:hidden;
+  background:linear-gradient(135deg,hsl(var(--h) 55% 64%),hsl(calc(var(--h) + 45) 60% 40%))}
+.t.ph{background:var(--surface);display:grid;place-items:center;padding:6px;font-size:11px;color:var(--muted);text-align:center}
+.t .new{position:absolute;top:6px;left:6px;width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px #fff}
+.t .reel{position:absolute;top:5px;right:6px;color:#fff;font-style:normal;font-size:11px;text-shadow:0 0 3px #000}
+.t .nls{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.62);color:#fff;font-style:normal;font-size:10px;padding:2px 4px;text-align:center}
+
+.summary{display:flex;align-items:center;gap:8px;margin:0 14px 8px;padding:8px 12px;border-radius:10px;background:var(--surface);font-size:13px}
+.summary span{flex:1}
+.menu{position:absolute;right:10px;top:50px;z-index:5;background:var(--bg);border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 8px 24px rgba(0,0,0,.2);min-width:210px;padding:6px 0}
+.menu button{display:flex;justify-content:space-between;width:100%;padding:10px 14px;text-align:left}
+.row{display:flex;align-items:center;gap:12px;width:100%;padding:10px 14px;text-align:left}
+.row .grow{flex:1;min-width:0}
+.row b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sep{border-top:1px solid var(--line)}
+
+.chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:var(--surface);font-size:13px;white-space:nowrap;flex:none}
+.chip.on{background:var(--fg);color:var(--bg)}
+.chip.tag{color:#fff;padding:4px 10px;font-size:12px}
+.chip.add{background:none;border:1px dashed var(--line);color:var(--muted)}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 14px 8px;scrollbar-width:none;flex:none}
+.pill-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{padding:8px 14px;border-radius:8px;background:var(--surface);font-weight:600}
+.btn.primary{background:var(--accent);color:#fff}
+.btn.danger{background:none;color:var(--danger)}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.search{flex:1;padding:8px 12px;border-radius:10px;background:var(--surface);color:var(--muted)}
+.warn{padding:6px 10px;border-radius:8px;background:var(--warn-bg);color:var(--warn-fg);font-size:12px}
+.fields{display:flex;flex-direction:column;gap:12px;padding:14px}
+.fields label{font-size:11px;color:var(--muted);display:block}
+.field{margin-top:3px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;color:var(--fg);font-size:14px}
+.field em{color:var(--muted)}
+.embed{position:relative;width:100%;aspect-ratio:4/5;display:grid;place-items:center;color:#fff;font-size:12px;
+  background:linear-gradient(135deg,hsl(var(--h) 55% 64%),hsl(calc(var(--h) + 45) 60% 40%))}
+.embed::before{content:"▶";font-size:40px;opacity:.85;position:absolute}
+.embed span{position:absolute;bottom:8px;left:10px;opacity:.9}
+.toast{position:absolute;left:12px;right:12px;bottom:70px;z-index:9;display:flex;justify-content:space-between;
+  padding:12px 14px;border-radius:8px;background:#323232;color:#fff}
+.toast button{color:#7cc4ff;font-weight:600}
+.empty{padding:48px 24px;text-align:center;color:var(--muted)}
+
+/* A: profile, highlights row, bottom sheet */
+.hl{display:flex;gap:14px;overflow-x:auto;padding:6px 14px 12px;scrollbar-width:none}
+.hl button{flex:none;width:68px;font-size:11px;text-align:center}
+.hl span{display:block;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ring{position:relative;width:66px;height:66px;margin:0 auto;border-radius:50%;padding:3px;border:2.5px solid var(--c,var(--line));display:block}
+.ring>i{display:grid;place-items:center;width:100%;height:100%;border-radius:50%;font-style:normal;font-size:24px;
+  background:linear-gradient(135deg,hsl(var(--h,0) 40% 80%),hsl(calc(var(--h,0) + 45) 45% 62%))}
+.ring.dash{border-style:dashed;border-color:var(--muted)}
+.ring.dash>i{background:var(--surface);font-size:20px;font-weight:700}
+.ring em{position:absolute;top:-4px;right:-6px;min-width:20px;padding:1px 5px;border-radius:999px;background:var(--accent);
+  color:#fff;font-style:normal;font-size:11px;font-weight:700;box-shadow:0 0 0 2px var(--bg)}
+.tabs{display:flex;border-top:1px solid var(--line);flex:none}
+.tabs button{flex:1;padding:11px 0;font-size:13px;color:var(--muted);border-bottom:2px solid transparent}
+.tabs button.on{color:var(--fg);border-color:var(--fg);font-weight:600}
+.profile{display:flex;gap:16px;align-items:center;padding:6px 14px 12px}
+.profile .ring{margin:0;flex:none;width:78px;height:78px}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.45);z-index:6}
+.sheet{position:absolute;left:0;right:0;bottom:0;height:88%;z-index:7;background:var(--bg);border-radius:18px 18px 0 0;
+  display:flex;flex-direction:column;animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(40%)}}
+.grab{width:40px;height:4px;border-radius:2px;background:var(--line);margin:8px auto;flex:none}
+.sheet .embed{aspect-ratio:1}
+
+/* B: Collection covers, bottom navigation, full-page Post */
+.big{font-size:26px;font-weight:800;letter-spacing:-.5px}
+.covers{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:6px 14px 20px}
+.covers button{text-align:left}
+.mosaic{display:grid;grid-template-columns:1fr 1fr;gap:2px;aspect-ratio:1;border-radius:14px;overflow:hidden;border-bottom:4px solid var(--c,transparent)}
+.mosaic i{background:linear-gradient(135deg,hsl(var(--h) 55% 64%),hsl(calc(var(--h) + 45) 60% 40%))}
+.mosaic i.none{background:var(--surface)}
+.covers b{display:block;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav{display:flex;border-top:1px solid var(--line);flex:none;padding-bottom:6px}
+.nav button{flex:1;padding:8px 0 4px;font-size:10px;color:var(--muted);position:relative}
+.nav button i{display:block;font-style:normal;font-size:20px;line-height:1.2}
+.nav button.on{color:var(--fg);font-weight:700}
+.nav em{position:absolute;top:4px;left:54%;padding:0 5px;border-radius:999px;background:var(--danger);color:#fff;font-style:normal;font-size:10px;font-weight:700}
+.row .t{width:60px;flex:none;border-radius:8px}
+.note{margin:0 14px;padding:10px 12px;border-radius:10px;background:var(--surface)}
+.note small{display:block;color:var(--muted);font-size:11px;margin-bottom:2px}
+.acts{display:flex;align-items:center;gap:10px;padding:10px 14px}
+
+/* C: one feed with filter chips, triage deck, immersive viewer */
+.cta{display:flex;align-items:center;gap:10px;margin:0 14px 10px;padding:12px;border-radius:12px;background:var(--accent);color:#fff;width:calc(100% - 28px);text-align:left}
+.cta b{flex:1}
+.deck{margin:4px 14px 12px;border-radius:16px;overflow:hidden;border:1px solid var(--line)}
+.deck .embed{aspect-ratio:5/4}
+.deck div.cap{padding:10px 12px}
+.file{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 14px 10px}
+.file button{display:flex;align-items:center;gap:8px;padding:11px 12px;border-radius:10px;background:var(--surface);text-align:left;white-space:nowrap;overflow:hidden}
+.dark{background:#000;color:#fff;--fg:#fff;--bg:#000;--muted:#a8a8a8;--line:#333;--surface:#1c1c1e}
+.viewer{flex:1;position:relative;display:grid;place-items:center;min-height:0}
+.viewer .embed{aspect-ratio:auto;height:100%}
+.viewer .step{position:absolute;top:50%;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.25);color:#fff;font-size:20px;z-index:2}
+.strip{flex:none;padding:10px 14px 14px;background:#111;border-radius:16px 16px 0 0;max-height:70%;overflow-y:auto;scrollbar-width:none}
+.strip .fields{padding:12px 0 0}
+
+.switcher{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:99;display:flex;align-items:center;gap:6px;
+  padding:6px;border-radius:999px;background:#111;color:#fff;box-shadow:0 6px 20px rgba(0,0,0,.4);border:2px solid #ffd400;white-space:nowrap}
+.switcher button{width:34px;height:34px;border-radius:50%;background:#333;font-size:16px}
+.switcher span{padding:0 10px;font-weight:600;font-size:13px}
+@media (max-width:820px){aside{display:none}}
+@media (max-width:500px){
+  main{padding:0}
+  .phone{width:100vw;height:calc(100dvh - 62px);border-radius:0;box-shadow:none}
+  .switcher{bottom:8px}
+}
+</style>
+</head>
+<body>
+<main>
+  <div class="phone" id="phone"></div>
+  <aside id="notes"></aside>
+</main>
+<div class="switcher">
+  <button id="prev" aria-label="Previous variant">←</button>
+  <span id="label"></span>
+  <button id="next" aria-label="Next variant">→</button>
+</div>
+
+<script>
+// ---------- made-up data, in memory only ----------
+const PALETTE = ['#B5533C','#4C6B8A','#6B7A4F','#B8863B','#7A5670','#3D6E8F','#9C5B8C','#5E7A9A','#A6763C','#4A7C6B','#8C6B47','#6E5B8C'];
+const collections = [
+  ['✈️ Japan', 'Kyoto first, then Tokyo. Book the ryokan by March.'],
+  ['🍝 Pasta', 'Weeknight dinners, nothing over 30 minutes.'],
+  ['🎸 Guitar', ''],
+  ['🏋️ Workouts', 'Three a week.'],
+  ['🏠 Home ideas', 'For the living room.'],
+  ['📚 Reading', ''],
+].map(([name, note], i) => ({ id: i + 1, name, note, color: PALETTE[i], emoji: name.split(' ')[0], hue: i * 57 }));
+const tags = ['Quick', 'Vegan', 'To try', 'Weekend'].map((name, i) => ({ id: i + 1, name, color: PALETTE[[1, 3, 6, 9][i]] }));
+const seed = [
+  ['Fushimi Inari at sunrise', 'Kyoto Walks', 1, [4]], ['Cacio e pepe in 12 minutes', 'Pasta Grannies', 2, [1]],
+  ['Fingerstyle warm-up', 'Six String Daily', 3, []], ['Hidden onsen near Hakone', 'Slow Japan', 1, [3]],
+  ['Pull day routine', 'Coach Lena', 4, []], ['Lentil ragù', 'Green Fork', 2, [2, 3]],
+  ['Oak shelf wall', 'Small Flat Studio', 5, [3]], ['Five novels for winter', 'The Paper Cut', 6, []],
+  ['Tokyo coffee map', 'Bean There', 1, [3]], ['Travis picking pattern', 'Six String Daily', 3, [3]],
+  ['Mobility in 10 minutes', 'Coach Lena', 4, [1]], ['Pesto without a blender', 'Pasta Grannies', 2, [1, 2]],
+  ['Reading nook lighting', 'Small Flat Studio', 5, []], ['Nara deer park tips', 'Kyoto Walks', 1, []],
+  ['Brown butter gnocchi', 'Green Fork', 2, [4]], ['Blues turnaround licks', 'Fretboard Lab', 3, []],
+  ['Kettlebell flow', 'Iron Minimal', 4, [1]], ['Essays worth rereading', 'The Paper Cut', 6, [3]],
+  ['Rice cooker tricks', 'Tiny Kitchen', null, []], ['Shibuya at night', 'Neon Frames', null, []],
+  ['Hallway gallery wall', 'Small Flat Studio', null, []], ['Sourdough shaping', 'Crumb Club', null, []],
+  ['Barre chords made easy', 'Fretboard Lab', null, []], ['Trail run in the Alps', 'Up High', null, []],
+  ['One-pan orzo', 'Tiny Kitchen', null, []], ['Standing desk setup', 'Desk Notes', null, []],
+  ['Osaka street food', 'Slow Japan', null, []], ['Hip opener sequence', 'Coach Lena', null, []],
+  ['Plant shelf by the window', 'Leaf Corner', null, []], ['Short stories, long nights', 'The Paper Cut', null, []],
+  ['Ramen broth basics', 'Tiny Kitchen', 2, [4]], ['Capsule hotel review', 'Neon Frames', 1, []],
+  ['Sofa colour ideas', 'Leaf Corner', 5, []], ['Core finisher', 'Iron Minimal', 4, [1]],
+  ['Old recipe card', 'Crumb Club', null, []], ['Deleted reel', 'Up High', 4, []], ['Out-of-date guide', 'Desk Notes', 1, []],
+];
+const fresh = () => seed.map(([title, owner, collectionId, tagIds], i) => ({
+  id: i + 1, title, owner, collectionId, tagIds, hue: (i * 47 + 20) % 360,
+  desc: title + '. Full caption from Instagram goes here, with the details and a few hashtags.',
+  note: i % 4 === 0 ? 'Try this next month.' : '',
+  isNew: i >= 18 && i < 26, nls: i === 5 || i === 13, noThumb: i === 20 || i === 27, reel: i % 3 === 0,
+  deleted: i >= 34, daysLeft: [27, 12, 3][i - 34],
+}));
+let posts = fresh();
+
+const col = id => collections.find(c => c.id === id);
+const byId = id => posts.find(p => p.id === id);
+const live = () => posts.filter(p => !p.deleted);
+const gone = () => posts.filter(p => p.deleted);
+const toSort = () => live().filter(p => p.collectionId == null);
+const inCol = id => live().filter(p => p.collectionId === id);
+
+// ---------- shared pieces ----------
+function thumb(p) {
+  return `<button class="t ${p.noThumb ? 'ph' : ''}" data-post="${p.id}" style="--h:${p.hue}">` +
+    (p.noThumb ? `<span>${p.owner}</span>` : '') + (p.isNew ? '<i class="new"></i>' : '') +
+    (p.reel ? '<i class="reel">▶</i>' : '') + (p.nls ? '<i class="nls">No longer saved</i>' : '') + '</button>';
+}
+const grid = ps => ps.length ? `<div class="grid">${ps.map(thumb).join('')}</div>` : '<div class="empty">Nothing here.</div>';
+const deletedGrid = () => `<p class="pad muted">Deleted Posts stay here for 30 days, then they are gone for good.</p>
+  <div class="grid">${gone().map(p => `<div class="t" style="--h:${p.hue}"><i class="nls">${p.daysLeft} days left</i></div>`).join('')}</div>`;
+const tagChip = id => { const t = tags.find(t => t.id === id); return `<span class="chip tag" style="background:${t.color}">${t.name}</span>`; };
+const colPill = p => { const c = col(p.collectionId); return `<span class="chip">${c ? `<i class="dot" style="background:${c.color}"></i>${c.name}` : 'To sort'} ▾</span>`; };
+const embed = p => `<div class="embed" style="--h:${p.hue}"><span>Instagram Embed · ${p.owner}</span></div>`;
+function fields(p) {
+  return `<div class="fields">
+    <div class="pill-row">${colPill(p)}${p.tagIds.map(tagChip).join('')}<span class="chip add">+ Tag</span></div>
+    ${p.nls ? '<div class="warn">No longer saved on Instagram</div>' : ''}
+    <label>Title<div class="field">${p.title}</div></label>
+    <label>Description<div class="field">${p.desc}</div></label>
+    <label>Post Note<div class="field">${p.note || '<em>Why did you save this?</em>'}</div></label>
+    <div class="muted" style="font-size:12px">Also on Instagram in: Travel 2025</div>
+    <div class="btns"><button class="btn">Open in Instagram</button><button class="btn danger" data-a="del:${p.id}">Delete</button></div>
+  </div>`;
+}
+const toast = () => S.toast ? `<div class="toast"><span>${S.toast}</span><button data-a="undo">Undo</button></div>` : '';
+
+// ---------- state ----------
+const VARIANTS = {
+  A: { name: 'Profile + highlights + sheet', render: A, notes: {
+    'Bet': 'Looks like an Instagram profile. Everything hangs off one home grid.',
+    'Grid': 'Home is the All grid, 3 columns, with tabs for All / New / No longer saved.',
+    'Collections': 'A circular highlights row above the grid, ring in the Collection color.',
+    'To sort': 'First circle in the row, dashed ring, count badge.',
+    'Post details': 'Bottom sheet over the grid: Embed on top, fields below.',
+    'Recently deleted': 'In the ⋮ menu, with Tags, Backup and Sync now.' } },
+  B: { name: 'Agreed: covers + tabs + page', render: B, notes: {
+    'Bet': 'Looks like Instagram\'s own Saved page. Collections are the home; a bottom bar switches jobs.',
+    'Grid': 'Only inside a Collection, All posts, or Search.',
+    'Collections': 'Two-column cover cards, each a mosaic of its latest Thumbnails.',
+    'To sort': 'Its own tab with a badge: a list (inbox), each row with a File button.',
+    'Post details': 'A full page that reads like an Instagram post; fields edit in place.',
+    'Recently deleted': 'In the More tab, beside No longer saved, Tags and Backup.' } },
+  C: { name: 'One feed + chips + triage', render: C, notes: {
+    'Bet': 'One screen, no navigation. Chips filter the grid in place; sorting is a dedicated fast mode.',
+    'Grid': 'Always on screen; search is always visible above it.',
+    'Collections': 'A row of filter chips (color dot + name), not circles.',
+    'To sort': 'A chip, plus a "Sort them now" deck: one Post at a time, tap a Collection to file it.',
+    'Post details': 'Dark immersive viewer with prev/next; details pull up from a strip.',
+    'Recently deleted': 'Last chips of the row, after No longer saved.' } },
+};
+const params = new URLSearchParams(location.search);
+let variant = (params.get('variant') || 'B').toUpperCase();
+if (!VARIANTS[variant]) variant = 'B';
+let S;
+function reset() { posts = fresh(); S = { stack: [{ name: 'home' }], post: null, tab: 'all', chip: 'all', summary: true, menu: false, expanded: false, toast: '', skip: 0 }; }
+const cur = () => S.stack[S.stack.length - 1];
+const go = (name, id) => S.stack.push({ name, id });
+
+const actions = {
+  go(arg) { const [name, id] = arg.split('/'); go(name, id ? +id : undefined); },
+  nav(arg) { S.stack = [{ name: arg }]; },
+  back() { if (S.post) S.post = null; else if (S.stack.length > 1) S.stack.pop(); },
+  close() { S.post = null; },
+  tab(arg) { S.tab = arg; },
+  chip(arg) { S.chip = arg; },
+  dismiss() { S.summary = false; },
+  menu() { S.menu = !S.menu; return true; },
+  expand() { S.expanded = !S.expanded; },
+  seen() { posts.forEach(p => p.isNew = false); },
+  del(arg) { const p = byId(+arg); p.deleted = true; p.daysLeft = 30; S.lastDeleted = p.id; S.post = null;
+    if (['post', 'viewer'].includes(cur().name)) S.stack.pop(); S.toast = 'Post deleted'; return true; },
+  undo() { byId(S.lastDeleted).deleted = false; },
+  file(arg) { const p = toSort()[S.skip]; if (p) p.collectionId = +arg; },
+  skip() { S.skip++; },
+  step(arg) { const ids = live().map(p => p.id), i = ids.indexOf(cur().id); cur().id = ids[(i + +arg + ids.length) % ids.length]; },
+};
+function openPost(id) {
+  byId(id).isNew = false; S.expanded = false;
+  if (variant === 'A') S.post = id; else go(variant === 'B' ? 'post' : 'viewer', id);
+}
+
+// ---------- A: profile, highlights row, bottom sheet ----------
+function A() {
+  const s = cur(); let h;
+  if (s.name === 'home') {
+    const tabs = { all: live(), new: live().filter(p => p.isNew), nls: live().filter(p => p.nls) };
+    h = `<header class="bar"><span class="logo grow">InstaSaved</span><span class="sync">Synced 2 h ago</span><button class="ic" data-a="menu">⋮</button></header>
+      ${S.menu ? `<div class="menu">
+        <button data-a="seen">Mark all as seen</button><button>Sync now</button><button>Tags<span class="muted">4</span></button>
+        <button data-a="go:deleted">Recently deleted<span class="muted">${gone().length}</span></button><button>Backup</button></div>` : ''}
+      <div class="body">
+        ${S.summary ? '<div class="summary"><span>Last Sync: <b>8 new · 2 no longer saved</b></span><button data-a="dismiss">✕</button></div>' : ''}
+        <div class="hl">
+          <button data-a="go:tosort"><i class="ring dash"><i>↓</i><em>${toSort().length}</em></i><span>To sort</span></button>
+          ${collections.map(c => `<button data-a="go:collection/${c.id}"><i class="ring" style="--c:${c.color};--h:${c.hue}"><i>${c.emoji}</i></i><span>${c.name.replace(c.emoji + ' ', '')}</span></button>`).join('')}
+          <button><i class="ring dash"><i>+</i></i><span>New</span></button>
+        </div>
+        <div class="tabs">
+          <button class="${S.tab === 'all' ? 'on' : ''}" data-a="tab:all">All ${tabs.all.length}</button>
+          <button class="${S.tab === 'new' ? 'on' : ''}" data-a="tab:new">New ${tabs.new.length}</button>
+          <button class="${S.tab === 'nls' ? 'on' : ''}" data-a="tab:nls">No longer saved ${tabs.nls.length}</button>
+        </div>
+        ${grid(tabs[S.tab])}
+      </div>`;
+  } else if (s.name === 'deleted') {
+    h = `<header class="bar"><button class="ic" data-a="back">‹</button><span class="h grow">Recently deleted</span><button class="btn danger">Empty now</button></header>
+      <div class="body">${deletedGrid()}</div>`;
+  } else {
+    const c = s.name === 'collection' ? col(s.id) : null, ps = c ? inCol(c.id) : toSort();
+    h = `<header class="bar"><button class="ic" data-a="back">‹</button><span class="h grow">${c ? c.name : 'To sort'}</span>${c ? '<button class="ic">⋮</button>' : ''}</header>
+      <div class="body">
+        <div class="profile">
+          ${c ? `<i class="ring" style="--c:${c.color};--h:${c.hue}"><i>${c.emoji}</i></i>` : '<i class="ring dash"><i>↓</i></i>'}
+          <div><b>${ps.length} Posts</b><div class="muted">${c ? (c.note || 'No Collection Note yet.') : 'Posts with no Collection yet.'}</div></div>
+        </div>
+        <div class="bar" style="padding-top:0"><span class="search">Search</span><span class="chip">Sort ▾</span></div>
+        ${grid(ps)}
+      </div>`;
+  }
+  return `<div class="screen">${h}</div>` + sheet();
+}
+function sheet() {
+  const p = S.post && byId(S.post);
+  return p ? `<div class="scrim" data-a="close"></div><div class="sheet"><div class="grab"></div><div class="body">${embed(p)}${fields(p)}</div></div>` : '';
+}
+
+
+// ---------- B: Collection covers, bottom navigation, full-page Post ----------
+function mosaic(ps, color) {
+  const cells = [0, 1, 2, 3].map(i => ps[i] ? `<i style="--h:${ps[i].hue}"></i>` : '<i class="none"></i>').join('');
+  return `<div class="mosaic" style="--c:${color || 'transparent'}">${cells}</div>`;
+}
+function B() {
+  const s = cur(); let h, nav = true;
+  if (s.name === 'home') {
+    h = `<header class="bar"><span class="big grow">Saved</span><button class="btn">+ Collection</button></header>
+      <div class="body">
+        <div class="pad sync" style="padding-top:0">Synced 2 h ago · 8 new · 2 no longer saved</div>
+        <div class="covers">
+          <button data-a="go:all">${mosaic(live())}<b>All posts</b><span class="muted">${live().length}</span></button>
+          ${collections.map(c => `<button data-a="go:collection/${c.id}">${mosaic(inCol(c.id), c.color)}<b>${c.name}</b><span class="muted">${inCol(c.id).length}</span></button>`).join('')}
+        </div>
+      </div>`;
+  } else if (s.name === 'tosort') {
+    h = `<header class="bar"><span class="big grow">To sort</span><span class="muted">${toSort().length} Posts</span></header>
+      <div class="body">${toSort().map(p => `<div class="row sep">${thumb(p)}
+        <button class="grow" data-post="${p.id}" style="text-align:left"><b>${p.title}</b><span class="muted">${p.owner} · saved ${p.id % 6 + 1} d ago</span></button>
+        <span class="btn">File ▾</span></div>`).join('') || '<div class="empty">All sorted.</div>'}</div>`;
+  } else if (s.name === 'search') {
+    h = `<header class="bar"><span class="search">Search Title, Description, Post Note</span></header>
+      <div class="chips"><span class="chip on">Sort: saved date ▾</span>${tags.map(t => `<span class="chip"><i class="dot" style="background:${t.color}"></i>${t.name}</span>`).join('')}</div>
+      <div class="body">${grid(live())}</div>`;
+  } else if (s.name === 'more') {
+    h = `<header class="bar"><span class="big grow">More</span></header><div class="body">
+      <div class="row"><span class="grow"><b>Sync now</b><span class="sync">Synced 2 h ago</span></span></div>
+      <button class="row sep" data-a="go:nls"><span class="grow">No longer saved</span><span class="muted">${live().filter(p => p.nls).length} ›</span></button>
+      <button class="row" data-a="go:deleted"><span class="grow">Recently deleted</span><span class="muted">${gone().length} ›</span></button>
+      <div class="row sep"><span class="grow">Tags</span><span class="muted">4 ›</span></div>
+      <div class="row"><span class="grow">Write a backup file</span></div><div class="row"><span class="grow">Restore a backup file</span></div>
+      <div class="row"><span class="grow">Desktop Import</span></div></div>`;
+  } else if (s.name === 'post') {
+    const p = byId(s.id); nav = false;
+    h = `<header class="bar"><button class="ic" data-a="back">‹</button><span class="grow"><b>${p.owner}</b></span><button class="btn">Open in Instagram</button></header>
+      <div class="body">${embed(p)}
+        <div class="acts">${colPill(p)}<span class="grow" style="flex:1"></span><button class="btn danger" data-a="del:${p.id}">Delete</button></div>
+        ${p.nls ? '<div class="pad"><div class="warn">No longer saved on Instagram</div></div>' : ''}
+        <div class="pad" style="padding-top:0"><b>${p.title}</b> ✎<div>${p.desc}</div></div>
+        <div class="pad pill-row">${p.tagIds.map(tagChip).join('')}<span class="chip add">+ Tag</span></div>
+        <div class="note"><small>Post Note</small>${p.note || '<span class="muted">Why did you save this?</span>'}</div>
+        <p class="pad muted" style="font-size:12px">Also on Instagram in: Travel 2025</p></div>`;
+  } else {
+    const c = s.name === 'collection' ? col(s.id) : null;
+    const ps = c ? inCol(c.id) : s.name === 'nls' ? live().filter(p => p.nls) : live();
+    const title = c ? `<i class="dot" style="background:${c.color}"></i> ${c.name}` : s.name === 'nls' ? 'No longer saved' : s.name === 'deleted' ? 'Recently deleted' : 'All posts';
+    h = `<header class="bar"><button class="ic" data-a="back">‹</button><span class="h grow">${title}</span>${c ? '<button class="btn">Edit</button>' : s.name === 'deleted' ? '<button class="btn danger">Empty now</button>' : ''}</header>
+      <div class="body">${c && c.note ? `<p class="pad" style="margin:0">${c.note}</p>` : ''}${s.name === 'deleted' ? deletedGrid() : grid(ps)}</div>`;
+  }
+  const root = S.stack[0].name;
+  const item = (key, glyph, label, badge) => `<button class="${root === key ? 'on' : ''}" data-a="nav:${key}"><i>${glyph}</i>${label}${badge ? `<em>${badge}</em>` : ''}</button>`;
+  return `<div class="screen">${h}${nav ? `<nav class="nav">${item('home', '▦', 'Collections')}${item('tosort', '↓', 'To sort', toSort().length)}${item('search', '⌕', 'Search')}${item('more', '≡', 'More')}</nav>` : ''}</div>`;
+}
+
+// ---------- C: one feed with filter chips, triage deck, immersive viewer ----------
+function C() {
+  const s = cur();
+  if (s.name === 'triage') {
+    const left = toSort(), p = left[S.skip];
+    return `<div class="screen"><header class="bar"><button class="ic" data-a="back">‹</button><span class="h grow">To sort</span><span class="muted">${left.length} left</span></header>
+      <div class="body">${p ? `<div class="deck">${embed(p)}<div class="cap"><b>${p.title}</b><div class="muted">${p.owner}</div></div></div>
+        <div class="pad muted" style="padding-top:0">File into</div>
+        <div class="file">${collections.map(c => `<button data-a="file:${c.id}"><i class="dot" style="background:${c.color}"></i>${c.name}</button>`).join('')}<button><i class="dot" style="border:1px dashed var(--muted)"></i>New Collection…</button></div>
+        <div class="acts"><button class="btn" data-a="skip">Skip</button><button class="btn danger" data-a="del:${p.id}">Delete</button></div>`
+        : '<div class="empty">Nothing left to sort.</div>'}</div></div>`;
+  }
+  if (s.name === 'viewer') {
+    const p = byId(s.id), ids = live().map(x => x.id);
+    return `<div class="screen dark"><header class="bar"><button class="ic" data-a="back">‹</button><span class="grow">${p.owner}</span><span class="muted">${ids.indexOf(p.id) + 1} / ${ids.length}</span></header>
+      <div class="viewer"><button class="step" style="left:8px" data-a="step:-1">‹</button>${embed(p)}<button class="step" style="right:8px" data-a="step:1">›</button></div>
+      <div class="strip"><button data-a="expand" style="display:block;width:100%;text-align:left">
+        <div class="pill-row"><b style="flex:1">${p.title}</b><span class="muted">${S.expanded ? 'Close ▾' : 'Details ▴'}</span></div>
+        ${S.expanded ? '' : `<div class="pill-row" style="margin-top:8px">${colPill(p)}${p.tagIds.map(tagChip).join('')}</div>`}</button>
+        ${S.expanded ? fields(p) : ''}</div></div>`;
+  }
+  const chip = (key, label, n) => `<button class="chip ${S.chip === key ? 'on' : ''}" data-a="chip:${key}">${label}${n != null ? ` <span style="opacity:.6">${n}</span>` : ''}</button>`;
+  const c = col(+S.chip);
+  const ps = S.chip === 'all' ? live() : S.chip === 'tosort' ? toSort() : S.chip === 'nls' ? live().filter(p => p.nls) : c ? inCol(c.id) : [];
+  return `<div class="screen"><header class="bar"><span class="search">Search InstaSaved</span><span class="sync">2 h ago</span><button class="ic">⋮</button></header>
+    <div class="chips">${chip('all', 'All', live().length)}${chip('tosort', 'To sort', toSort().length)}
+      ${collections.map(k => chip(k.id, `<i class="dot" style="background:${k.color}"></i>${k.name}`, inCol(k.id).length)).join('')}
+      <span class="chip add">+ Collection</span>${chip('nls', 'No longer saved', live().filter(p => p.nls).length)}${chip('deleted', 'Recently deleted', gone().length)}</div>
+    <div class="body">
+      ${S.summary && S.chip === 'all' ? '<div class="summary"><span>Last Sync: <b>8 new · 2 no longer saved</b></span><button data-a="dismiss">✕</button></div>' : ''}
+      ${S.chip === 'tosort' && ps.length ? `<button class="cta" data-a="go:triage"><b>Sort ${ps.length} Posts now</b><span>→</span></button>` : ''}
+      ${c ? `<div class="bar" style="padding-top:0;min-height:0"><span class="grow muted">${c.note || 'No Collection Note yet.'}</span><span class="chip">Edit</span></div>` : ''}
+      ${S.chip === 'deleted' ? `<div class="bar" style="padding:0 14px;min-height:0"><span class="grow"></span><button class="btn danger">Empty now</button></div>${deletedGrid()}` : grid(ps)}
+    </div></div>`;
+}
+
+// ---------- shell ----------
+const phone = document.getElementById('phone');
+function render() {
+  const key = variant + JSON.stringify(cur()), old = phone.querySelector('.screen .body');
+  const scroll = old && phone.dataset.key === key ? old.scrollTop : 0;
+  phone.innerHTML = VARIANTS[variant].render() + toast();
+  phone.dataset.key = key;
+  const body = phone.querySelector('.screen .body'); if (body) body.scrollTop = scroll;
+  document.getElementById('label').textContent = `${variant} (${VARIANTS[variant].name})`;
+  const v = VARIANTS[variant];
+  document.getElementById('notes').innerHTML = `<h1>Variant ${variant}</h1><p>${v.name}</p>
+    <dl>${Object.entries(v.notes).map(([k, t]) => `<dt>${k}</dt><dd>${t}</dd>`).join('')}</dl>
+    <div class="state">screen: ${S.stack.map(x => x.name + (x.id ? '/' + x.id : '')).join(' › ')}${S.post ? ' + sheet ' + S.post : ''}<br>
+    to sort: ${toSort().length} · new: ${live().filter(p => p.isNew).length} · recently deleted: ${gone().length}</div>`;
+}
+phone.addEventListener('click', e => {
+  const el = e.target.closest('[data-a],[data-post]');
+  let keep = false;
+  if (el && el.dataset.post) openPost(+el.dataset.post);
+  else if (el) { const [verb, arg] = el.dataset.a.split(':'); keep = actions[verb](arg) === true; }
+  if (!keep) { if (!(el && el.dataset.a === 'menu')) S.menu = false; S.toast = ''; }
+  else if (!(el && el.dataset.a === 'menu')) S.menu = false;
+  render();
+});
+function setVariant(v) {
+  variant = v; reset();
+  try { history.replaceState(null, '', '?variant=' + v); } catch (_) { location.hash = v; }
+  render();
+}
+function cycle(d) { const keys = Object.keys(VARIANTS); setVariant(keys[(keys.indexOf(variant) + d + keys.length) % keys.length]); }
+document.getElementById('prev').onclick = () => cycle(-1);
+document.getElementById('next').onclick = () => cycle(1);
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input,textarea,[contenteditable]')) return;
+  if (e.key === 'ArrowLeft') cycle(-1);
+  if (e.key === 'ArrowRight') cycle(1);
+});
+
+reset();
+if (params.get('go')) actions[variant === 'B' && ['tosort', 'search', 'more'].includes(params.get('go')) ? 'nav' : 'go'](params.get('go'));
+if (variant === 'C' && params.get('chip')) S.chip = params.get('chip');
+if (params.get('post')) openPost(+params.get('post'));
+render();
+</script>
+</body>
+</html>
