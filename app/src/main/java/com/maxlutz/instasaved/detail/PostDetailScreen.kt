@@ -11,19 +11,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,12 +30,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.maxlutz.instasaved.R
 import com.maxlutz.instasaved.collections.CollectionEditorDialog
+import com.maxlutz.instasaved.collections.CollectionMenu
 import com.maxlutz.instasaved.collections.ColorDot
 import com.maxlutz.instasaved.data.Collection
 import com.maxlutz.instasaved.data.PALETTE
@@ -51,10 +50,15 @@ import com.maxlutz.instasaved.data.editTitle
 import com.maxlutz.instasaved.data.nextColor
 import com.maxlutz.instasaved.tags.TagChip
 import com.maxlutz.instasaved.tags.TagPickerDialog
+import com.maxlutz.instasaved.ui.InstaSavedTheme
+import com.maxlutz.instasaved.ui.Pill
+import com.maxlutz.instasaved.ui.PlainTextField
+import com.maxlutz.instasaved.ui.SoftButton
 
 /**
- * An opened Post: its Embed, then its Collection, Tags, Title, Description and Post Note, editable in place.
- * Every text edit is handed to [onTextChange] as the whole edited Post, flags included.
+ * An opened Post, laid out like an Instagram post: its owner above its Embed, then its Collection, Title and
+ * Description, Tags and Post Note. The texts are edited where they are read; every edit is handed to
+ * [onTextChange] as the whole edited Post, flags included.
  *
  * @param collections every Collection, alphabetically, to pick the Post's from.
  * @param onCollectionChange the picked Collection's id, or null for To sort.
@@ -68,6 +72,7 @@ import com.maxlutz.instasaved.tags.TagPickerDialog
 fun PostDetailScreen(
     post: Post,
     collections: List<Collection>,
+    onBack: () -> Unit,
     onTextChange: (Post) -> Unit,
     onCollectionChange: (Long?) -> Unit,
     onNewCollection: (Collection) -> Unit,
@@ -94,118 +99,119 @@ fun PostDetailScreen(
         topBar = {
             TopAppBar(
                 title = {
+                    // The owner is only known once Sync has seen the Post.
                     Text(
-                        draft.title.ifBlank { stringResource(R.string.post_detail_untitled) },
+                        post.ownerName.ifBlank { post.ownerUsername },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(painterResource(R.drawable.ic_arrow_back), stringResource(R.string.back))
+                    }
+                },
+                actions = {
+                    SoftButton(
+                        stringResource(R.string.open_in_instagram),
+                        onClick = onOpenInInstagram,
+                        modifier = Modifier.padding(end = 14.dp),
                     )
                 },
             )
         },
     ) { padding ->
-        Column(
-            Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+        Column(Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(rememberScrollState())) {
             // Drags on the Embed scroll only the Embed, so it never fills the screen: the rest scrolls the page.
             val embedHeight = (LocalConfiguration.current.screenHeightDp * 0.6f).dp
             if (showEmbed) Embed(post.shortcode, Modifier.fillMaxWidth().height(embedHeight))
-            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 CollectionPicker(
                     current = collections.find { it.id == post.collectionId },
                     collections = collections,
                     onPick = onCollectionChange,
                     onNew = onNewCollection,
+                    modifier = Modifier.weight(1f),
                 )
+                SoftButton(stringResource(R.string.delete), onClick = onDelete, danger = true)
+            }
+            Column(
+                Modifier.padding(start = 14.dp, end = 14.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    PlainTextField(
+                        value = draft.title,
+                        onValueChange = { edit { editTitle(it) } },
+                        placeholder = stringResource(R.string.title),
+                        textStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    PlainTextField(
+                        value = draft.description,
+                        onValueChange = { edit { editDescription(it) } },
+                        placeholder = stringResource(R.string.description),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 PostTags(tags, postTags, onAddTag, onRemoveTag, onNewTag)
-                OutlinedTextField(
-                    value = draft.title,
-                    onValueChange = { edit { editTitle(it) } },
-                    label = { Text(stringResource(R.string.title)) },
-                    supportingText = if (draft.titleHandEdited) null else {
-                        { Text(stringResource(R.string.title_follows_description)) }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = draft.description,
-                    onValueChange = { edit { editDescription(it) } },
-                    label = { Text(stringResource(R.string.description)) },
-                    minLines = 3,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = draft.postNote,
-                    onValueChange = { edit { editPostNote(it) } },
-                    label = { Text(stringResource(R.string.post_note)) },
-                    minLines = 2,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onOpenInInstagram) { Text(stringResource(R.string.open_in_instagram)) }
-                    TextButton(
-                        onClick = onDelete,
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    ) { Text(stringResource(R.string.delete)) }
+                Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
+                        Text(
+                            stringResource(R.string.post_note),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        PlainTextField(
+                            value = draft.postNote,
+                            onValueChange = { edit { editPostNote(it) } },
+                            placeholder = stringResource(R.string.post_note_hint),
+                            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-/** The Post's Collection (or To sort) as a button opening a menu of every Collection, plus "New Collection…". */
+/** The Post's Collection (or To sort) as a chip opening a menu of every Collection, plus "New Collection…". */
 @Composable
 private fun CollectionPicker(
     current: Collection?,
     collections: List<Collection>,
     onPick: (Long?) -> Unit,
     onNew: (Collection) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
     var creating by rememberSaveable { mutableStateOf(false) }
 
-    Box {
-        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (current != null) ColorDot(current.color)
-                Text(
-                    current?.name ?: stringResource(R.string.to_sort),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.to_sort)) },
-                onClick = {
-                    expanded = false
-                    onPick(null)
-                },
+    Box(modifier) {
+        Pill(onClick = { expanded = true }) {
+            if (current != null) ColorDot(current.color, size = 10.dp)
+            Text(
+                current?.name ?: stringResource(R.string.to_sort),
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
             )
-            collections.forEach { collection ->
-                DropdownMenuItem(
-                    text = { Text(collection.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    leadingIcon = { ColorDot(collection.color) },
-                    onClick = {
-                        expanded = false
-                        onPick(collection.id)
-                    },
-                )
-            }
-            HorizontalDivider()
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.new_collection_ellipsis)) },
-                onClick = {
-                    expanded = false
-                    creating = true
-                },
-            )
+            Text("▾", style = MaterialTheme.typography.labelLarge)
         }
+        CollectionMenu(
+            expanded = expanded,
+            onDismiss = { expanded = false },
+            collections = collections,
+            onPick = onPick,
+            onNew = { creating = true },
+            offerToSort = true,
+        )
     }
 
     if (creating) {
@@ -238,10 +244,9 @@ private fun PostTags(
         itemVerticalAlignment = Alignment.CenterVertically,
     ) {
         postTags.forEach { TagChip(it) }
-        AssistChip(
-            onClick = { picking = true },
-            label = { Text(stringResource(if (postTags.isEmpty()) R.string.add_tags else R.string.edit_tags)) },
-        )
+        Pill(onClick = { picking = true }, dashed = true) {
+            Text(stringResource(R.string.add_tag), style = MaterialTheme.typography.labelLarge)
+        }
     }
 
     if (picking) {
@@ -260,7 +265,7 @@ private fun PostTags(
 @Preview
 @Composable
 private fun PostDetailScreenPreview() {
-    MaterialTheme {
+    InstaSavedTheme {
         PostDetailScreen(
             Post(
                 shortcode = "C1a2B3c4D5e",
@@ -269,8 +274,10 @@ private fun PostDetailScreenPreview() {
                 title = "Best pasta in town",
                 description = "Best pasta in town. Recipe below!",
                 collectionId = 1,
+                ownerName = "Pasta Grannies",
             ),
             collections = listOf(Collection(1, "🍝 Pasta", PALETTE[0])),
+            onBack = {},
             onTextChange = {},
             onCollectionChange = {},
             onNewCollection = {},

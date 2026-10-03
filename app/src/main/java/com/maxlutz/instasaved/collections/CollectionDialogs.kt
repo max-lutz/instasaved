@@ -38,6 +38,7 @@ import com.maxlutz.instasaved.R
 import com.maxlutz.instasaved.data.Collection
 import com.maxlutz.instasaved.data.PALETTE
 import com.maxlutz.instasaved.data.sameName
+import com.maxlutz.instasaved.ui.InstaSavedTheme
 
 @Composable
 fun ColorDot(color: Int, modifier: Modifier = Modifier, size: Dp = 12.dp) {
@@ -176,7 +177,7 @@ fun DeleteCollectionDialog(
 @Preview
 @Composable
 private fun CollectionEditorDialogPreview() {
-    MaterialTheme {
+    InstaSavedTheme {
         CollectionEditorDialog(
             title = "New Collection",
             initial = Collection(name = "Recipes", color = PALETTE[0]),
@@ -190,5 +191,5 @@ private fun CollectionEditorDialogPreview() {
 @Preview
 @Composable
 private fun DeleteCollectionDialogPreview() {
-    MaterialTheme { DeleteCollectionDialog("Recipes", 3, onKeepPosts = {}, onDeletePosts = {}, onDismiss = {}) }
+    InstaSavedTheme { DeleteCollectionDialog("Recipes", 3, onKeepPosts = {}, onDeletePosts = {}, onDismiss = {}) }
 }

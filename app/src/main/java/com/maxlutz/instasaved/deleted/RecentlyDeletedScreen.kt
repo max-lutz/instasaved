@@ -21,9 +21,14 @@ import androidx.compose.ui.unit.dp
 import com.maxlutz.instasaved.R
 import com.maxlutz.instasaved.data.Post
 import com.maxlutz.instasaved.grid.PostGridScreen
+import com.maxlutz.instasaved.ui.InstaSavedTheme
+import com.maxlutz.instasaved.ui.SoftButton
 import java.io.File
 
-/** Recently deleted: the Deleted Posts that can still be restored. Tapping one offers to restore it. */
+/**
+ * Recently deleted: the Deleted Posts that can still be restored, each saying how many days it has left. Tapping one
+ * offers to restore it.
+ */
 @Composable
 fun RecentlyDeletedScreen(
     posts: List<Post>,
@@ -47,7 +52,7 @@ fun RecentlyDeletedScreen(
         onOpen = { restoringId = it.id },
         actions = {
             if (posts.isNotEmpty()) {
-                TextButton(onClick = { emptying = true }) { Text(stringResource(R.string.empty_now)) }
+                SoftButton(stringResource(R.string.empty_now), onClick = { emptying = true }, danger = true)
             }
         },
         header = {
@@ -55,8 +60,12 @@ fun RecentlyDeletedScreen(
                 stringResource(R.string.recently_deleted_explained),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
             )
+        },
+        overlayOf = { post ->
+            val daysLeft = RecentlyDeleted.daysLeft(post, now)
+            pluralStringResource(R.plurals.days_left, daysLeft, daysLeft)
         },
     )
 
@@ -101,7 +110,7 @@ fun RecentlyDeletedScreen(
 @Preview
 @Composable
 private fun RecentlyDeletedScreenPreview() {
-    MaterialTheme {
+    InstaSavedTheme {
         RecentlyDeletedScreen(
             posts = listOf(Post(id = 1, shortcode = "C1a2B3c4D5e", url = "", addedAt = 0, title = "Carbonara", deletedAt = 0)),
             thumbnailOf = { null },

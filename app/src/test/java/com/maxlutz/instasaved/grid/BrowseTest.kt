@@ -157,6 +157,28 @@ class BrowseTest {
         assertEquals(listOf("Vegan" to listOf(3L, 1L), null to listOf(4L)), groups.idsByTag())
     }
 
+    // Filter by Tag
+
+    @Test
+    fun aTagFilterShowsOnlyThePostsCarryingIt() {
+        val posts = listOf(post(3), post(2), post(1))
+        val postTags = listOf(PostTag(1, vegan.id), PostTag(2, quick.id), PostTag(3, quick.id), PostTag(3, vegan.id))
+
+        val groups = Browse(tagId = vegan.id).arrange(posts, tags, postTags)
+
+        assertEquals(listOf(null to listOf(3L, 1L)), groups.idsByTag())
+    }
+
+    @Test
+    fun aTagFilterCombinesWithSearchAndGrouping() {
+        val posts = listOf(post(1, title = "Ramen"), post(2, title = "Dal"), post(3, title = "Miso ramen"))
+        val postTags = listOf(PostTag(1, vegan.id), PostTag(2, vegan.id), PostTag(3, quick.id), PostTag(1, quick.id))
+
+        val groups = Browse(query = "ramen", groupByTag = true, tagId = vegan.id).arrange(posts, tags, postTags)
+
+        assertEquals(listOf("Quick" to listOf(1L), "Vegan" to listOf(1L)), groups.idsByTag())
+    }
+
     @Test
     fun nothingFoundLeavesNoGroup() {
         val posts = listOf(post(1, title = "Ramen"))
