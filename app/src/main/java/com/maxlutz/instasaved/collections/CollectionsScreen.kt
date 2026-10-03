@@ -41,15 +41,17 @@ import com.maxlutz.instasaved.data.nextColor
 import com.maxlutz.instasaved.tags.TagEditorDialog
 
 /**
- * The app's home: To sort, then every Collection alphabetically, each with its Post count, then every Tag the same
- * way, then Recently deleted. Tapping a Tag edits it.
+ * The app's home: All, To sort, then every Collection alphabetically, each with its Post count, then every Tag the
+ * same way, then Recently deleted. Tapping a Tag edits it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CollectionsScreen(
+    allCount: Int,
     toSortCount: Int,
     collections: List<CollectionWithCount>,
     snackbar: SnackbarHostState,
+    onOpenAll: () -> Unit,
     onOpenToSort: () -> Unit,
     onOpenCollection: (Collection) -> Unit,
     onCreate: (Collection) -> Unit,
@@ -71,6 +73,13 @@ fun CollectionsScreen(
         },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding)) {
+            item(key = "all") {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.all)) },
+                    trailingContent = { Text(allCount.toString()) },
+                    modifier = Modifier.clickable(onClick = onOpenAll),
+                )
+            }
             item(key = "to-sort") {
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.to_sort)) },
@@ -184,12 +193,14 @@ fun CollectionsScreen(
 private fun CollectionsScreenPreview() {
     MaterialTheme {
         CollectionsScreen(
+            allCount = 23,
             toSortCount = 12,
             collections = listOf(
                 CollectionWithCount(Collection(1, "✈️ Japan", PALETTE[1], "Kyoto first"), 8),
                 CollectionWithCount(Collection(2, "🍝 Pasta", PALETTE[0]), 3),
             ),
             snackbar = remember { SnackbarHostState() },
+            onOpenAll = {},
             onOpenToSort = {},
             onOpenCollection = {},
             onCreate = {},

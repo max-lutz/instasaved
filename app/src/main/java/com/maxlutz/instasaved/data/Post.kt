@@ -10,6 +10,8 @@ import androidx.room.PrimaryKey
  *
  * @property url the link the Post was first added from, kept as-is for opening it.
  * @property addedAt when the Post entered the app, in epoch milliseconds.
+ * @property modifiedAt when the user last changed the Post's text, Collection or Tags, in epoch milliseconds;
+ *   [addedAt] until they do.
  * @property seenInExport whether any Export has contained this Post yet. Only Sync sets it (sync-spec R3a).
  * @property titleHandEdited once set, [title] no longer follows [description] (ADR-0005).
  * @property descriptionHandEdited once set, Sync no longer overwrites [description] with the caption (ADR-0005).
@@ -37,6 +39,7 @@ data class Post(
     val shortcode: String,
     val url: String,
     val addedAt: Long,
+    val modifiedAt: Long = addedAt,
     val seenInExport: Boolean = false,
     val title: String = "",
     val titleHandEdited: Boolean = false,

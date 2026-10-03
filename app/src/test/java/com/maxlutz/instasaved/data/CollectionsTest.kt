@@ -124,7 +124,7 @@ class CollectionsTest {
     fun theListCountsPostsLeavingOutRecentlyDeletedOnes() = runTest {
         val recipes = create("Recipes")
         create("Travel")
-        listOf("A", "B", "C").forEach { posts.setCollection(addPost(it), recipes) }
+        listOf("A", "B", "C").forEach { posts.setCollection(addPost(it), recipes, at = 1L) }
         posts.delete(checkNotNull(posts.get("C")).id, at = 9L)
 
         assertEquals(
@@ -141,7 +141,7 @@ class CollectionsTest {
         val post = addPost("A")
         addPost("B")
 
-        posts.setCollection(post, recipes)
+        posts.setCollection(post, recipes, at = 1L)
 
         assertEquals(listOf("B"), toSort())
         assertEquals(listOf("A"), inCollection(recipes))
@@ -153,8 +153,8 @@ class CollectionsTest {
         val travel = create("Travel")
         val post = addPost("A")
 
-        posts.setCollection(post, recipes)
-        posts.setCollection(post, travel)
+        posts.setCollection(post, recipes, at = 1L)
+        posts.setCollection(post, travel, at = 1L)
 
         assertEquals(emptyList<String>(), inCollection(recipes))
         assertEquals(listOf("A"), inCollection(travel))
@@ -164,9 +164,9 @@ class CollectionsTest {
     fun clearingTheCollectionPutsThePostBackInToSort() = runTest {
         val recipes = create("Recipes")
         val post = addPost("A")
-        posts.setCollection(post, recipes)
+        posts.setCollection(post, recipes, at = 1L)
 
-        posts.setCollection(post, null)
+        posts.setCollection(post, null, at = 1L)
 
         assertEquals(listOf("A"), toSort())
         assertEquals(emptyList<String>(), inCollection(recipes))
@@ -175,9 +175,9 @@ class CollectionsTest {
     @Test
     fun aCollectionListsItsPostsNewestFirstWithoutDeletedOnes() = runTest {
         val recipes = create("Recipes")
-        posts.setCollection(addPost("A", addedAt = 1L), recipes)
-        posts.setCollection(addPost("B", addedAt = 2L), recipes)
-        posts.setCollection(addPost("C", addedAt = 3L), recipes)
+        posts.setCollection(addPost("A", addedAt = 1L), recipes, at = 1L)
+        posts.setCollection(addPost("B", addedAt = 2L), recipes, at = 1L)
+        posts.setCollection(addPost("C", addedAt = 3L), recipes, at = 1L)
         posts.delete(checkNotNull(posts.get("B")).id, at = 9L)
 
         assertEquals(listOf("C", "A"), inCollection(recipes))
@@ -189,8 +189,8 @@ class CollectionsTest {
     fun deletingAndKeepingPostsMovesThemToToSort() = runTest {
         val recipes = create("Recipes")
         val travel = create("Travel")
-        posts.setCollection(addPost("A"), recipes)
-        posts.setCollection(addPost("B"), travel)
+        posts.setCollection(addPost("A"), recipes, at = 1L)
+        posts.setCollection(addPost("B"), travel, at = 1L)
 
         collections.deleteKeepingPosts(recipes)
 
@@ -203,7 +203,7 @@ class CollectionsTest {
     fun aRecentlyDeletedPostOfADeletedCollectionWouldBeRestoredToToSort() = runTest {
         val recipes = create("Recipes")
         val post = addPost("A")
-        posts.setCollection(post, recipes)
+        posts.setCollection(post, recipes, at = 1L)
         posts.delete(post, at = 9L)
 
         collections.deleteKeepingPosts(recipes)
@@ -216,9 +216,9 @@ class CollectionsTest {
     fun deletingWithPostsMovesThemToRecentlyDeletedAsOneAction() = runTest {
         val recipes = create("Recipes", PALETTE[4], "Weeknight dinners")
         val travel = create("Travel")
-        posts.setCollection(addPost("A"), recipes)
-        posts.setCollection(addPost("B"), recipes)
-        posts.setCollection(addPost("C"), travel)
+        posts.setCollection(addPost("A"), recipes, at = 1L)
+        posts.setCollection(addPost("B"), recipes, at = 1L)
+        posts.setCollection(addPost("C"), travel, at = 1L)
         addPost("D")
 
         collections.deleteWithPosts(recipes, at = 9L)
@@ -240,7 +240,7 @@ class CollectionsTest {
     fun deletingWithPostsLeavesAlreadyDeletedPostsAsTheyWere() = runTest {
         val recipes = create("Recipes")
         val post = addPost("A")
-        posts.setCollection(post, recipes)
+        posts.setCollection(post, recipes, at = 1L)
         posts.delete(post, at = 5L)
 
         collections.deleteWithPosts(recipes, at = 9L)

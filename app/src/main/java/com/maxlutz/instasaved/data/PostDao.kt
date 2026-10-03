@@ -19,6 +19,10 @@ interface PostDao {
     @Query("SELECT * FROM posts WHERE id = :id")
     fun observe(id: Long): Flow<Post?>
 
+    /** Every Post not deleted, newest first. */
+    @Query("SELECT * FROM posts WHERE deletedAt IS NULL ORDER BY addedAt DESC, id DESC")
+    fun observeAll(): Flow<List<Post>>
+
     /** Posts in To sort (no Collection), newest first. */
     @Query("SELECT * FROM posts WHERE collectionId IS NULL AND deletedAt IS NULL ORDER BY addedAt DESC, id DESC")
     fun observeToSort(): Flow<List<Post>>
@@ -34,13 +38,13 @@ interface PostDao {
     suspend fun getAllFewestThumbnailFailuresFirst(): List<Post>
 
     /** Puts the Post in a Collection, or in To sort when [collectionId] is null. */
-    @Query("UPDATE posts SET collectionId = :collectionId WHERE id = :id")
-    suspend fun setCollection(id: Long, collectionId: Long?)
+    @Query("UPDATE posts SET collectionId = :collectionId, modifiedAt = :at WHERE id = :id")
+    suspend fun setCollection(id: Long, collectionId: Long?, at: Long)
 
     /** Saves the user's text and its hand-edited flags, leaving everything else (e.g. deletion) as stored. */
     @Query(
         "UPDATE posts SET title = :title, titleHandEdited = :titleHandEdited, description = :description, " +
-            "descriptionHandEdited = :descriptionHandEdited, postNote = :postNote WHERE id = :id",
+            "descriptionHandEdited = :descriptionHandEdited, postNote = :postNote, modifiedAt = :at WHERE id = :id",
     )
     suspend fun updateText(
         id: Long,
@@ -49,6 +53,7 @@ interface PostDao {
         description: String,
         descriptionHandEdited: Boolean,
         postNote: String,
+        at: Long,
     )
 
     /** Moves the Post to Recently deleted (ADR-0012). [RecentlyDeletedDao.restore] takes it back out. */
@@ -64,11 +69,12 @@ interface PostDao {
     suspend fun thumbnailSaved(id: Long)
 }
 
-suspend fun PostDao.updateText(post: Post) = updateText(
+suspend fun PostDao.updateText(post: Post, at: Long) = updateText(
     id = post.id,
     title = post.title,
     titleHandEdited = post.titleHandEdited,
     description = post.description,
     descriptionHandEdited = post.descriptionHandEdited,
     postNote = post.postNote,
+    at = at,
 )

@@ -105,7 +105,7 @@ class MigrationTest {
         assertEquals(listOf(post), db.postDao().observeToSort().first())
         // The migrated reference still sends Posts to To sort when their Collection is deleted.
         val recipes = db.collectionDao().create("Recipes", PALETTE[0])!!
-        db.postDao().setCollection(post.id, recipes)
+        db.postDao().setCollection(post.id, recipes, at = 7L)
         db.collectionDao().deleteKeepingPosts(recipes)
         val after = db.postDao().get("ABC123")!!
         db.close()
@@ -131,7 +131,7 @@ class MigrationTest {
         val post = db.postDao().get("ABC123")!!
         val tagsBefore = db.tagDao().observeOnPost(post.id).first()
         val vegan = db.tagDao().create("Vegan", PALETTE[0])!!
-        db.tagDao().addToPost(post.id, vegan)
+        db.tagDao().addToPost(post.id, vegan, at = 1L)
         val tagsAfter = db.tagDao().observeOnPost(post.id).first().map { it.name }
         db.close()
 
@@ -188,5 +188,28 @@ class MigrationTest {
         assertFalse(traceBefore)
         assertEquals(true, traceAfter)
         assertNull(postAfter)
+    }
+
+    @Test
+    fun migrates7To8WithEveryPostModifiedWhenItWasAdded() = runTest {
+        createDatabase(
+            7,
+            seed = listOf("A" to 7, "B" to 9).map { (shortcode, addedAt) ->
+                "INSERT INTO posts (shortcode, url, addedAt, seenInExport, title, titleHandEdited, description, " +
+                    "descriptionHandEdited, postNote, ownerUsername, ownerName, thumbnailFailures) VALUES " +
+                    "('$shortcode', 'https://www.instagram.com/p/$shortcode/', $addedAt, 0, 'Hi', 0, 'Hi. There', 1, " +
+                    "'note', '', '', 0)"
+            },
+        )
+
+        val db = openMigrated()
+        val before = db.postDao().observeAll().first()
+        db.postDao().updateText(before.first().editPostNote("new note"), at = 12)
+        val after = db.postDao().observeAll().first()
+        db.close()
+
+        assertEquals(listOf("B" to 9L, "A" to 7L), before.map { it.shortcode to it.modifiedAt })
+        assertEquals(listOf("B" to 12L, "A" to 7L), after.map { it.shortcode to it.modifiedAt })
+        assertEquals(listOf("new note", "note"), after.map { it.postNote })
     }
 }

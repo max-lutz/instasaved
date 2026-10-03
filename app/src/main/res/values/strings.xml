@@ -1,5 +1,16 @@
 <resources>
     <string name="app_name">InstaSaved</string>
+    <string name="all">All</string>
+    <string name="all_empty">No Posts yet.
+Share a post from Instagram to add it.</string>
+    <string name="search">Search</string>
+    <string name="clear">Clear</string>
+    <string name="search_no_match">No Posts match your search.</string>
+    <string name="sort">Sort</string>
+    <string name="sort_saved">Saved date</string>
+    <string name="sort_modified">Modified date</string>
+    <string name="group_by_tag">Group by Tag</string>
+    <string name="no_tag">No Tag</string>
     <string name="to_sort">To sort</string>
     <string name="to_sort_empty">No posts to sort.
 Share a post from Instagram to add it.</string>

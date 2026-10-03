@@ -93,9 +93,9 @@ class ShareInTest {
         val url = "https://www.instagram.com/p/C1a2B3c4D5e/"
         shareIn.receive(url)
         val recipes = checkNotNull(db.collectionDao().create("Recipes", 0))
-        val saved = toSort().single().copy(postNote = "Try on Sunday", collectionId = recipes)
-        db.postDao().updateText(saved.id, "", false, "", false, saved.postNote)
-        db.postDao().setCollection(saved.id, recipes)
+        val saved = toSort().single().copy(postNote = "Try on Sunday", collectionId = recipes, modifiedAt = 3L)
+        db.postDao().updateText(saved.id, "", false, "", false, saved.postNote, at = 2L)
+        db.postDao().setCollection(saved.id, recipes, at = 3L)
         db.postDao().delete(saved.id, at = 5L)
         clock = 2_000L
 
@@ -123,7 +123,7 @@ class ShareInTest {
     fun addingBackAPostDownToItsTraceAddsAFreshPostToToSort() = runTest {
         shareIn.receive("https://www.instagram.com/p/C1a2B3c4D5e/")
         val first = toSort().single()
-        db.postDao().updateText(first.id, "", false, "", false, "Try on Sunday")
+        db.postDao().updateText(first.id, "", false, "", false, "Try on Sunday", at = 1L)
         db.postDao().delete(first.id, at = 5L)
         db.recentlyDeletedDao().purge(deletedUpTo = 5L)
         clock = 2_000L

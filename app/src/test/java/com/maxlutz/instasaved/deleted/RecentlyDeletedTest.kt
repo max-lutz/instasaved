@@ -50,7 +50,7 @@ class RecentlyDeletedTest {
 
     private suspend fun addPost(shortcode: String, collectionId: Long? = null): Long {
         val id = posts.insert(Post(shortcode = shortcode, url = "https://www.instagram.com/p/$shortcode/", addedAt = 1L))
-        posts.setCollection(id, collectionId)
+        posts.setCollection(id, collectionId, at = 1L)
         return id
     }
 
@@ -100,7 +100,7 @@ class RecentlyDeletedTest {
     fun restoreKeepsThePostWhole() = runTest {
         val post = addPost("A")
         val before = checkNotNull(posts.get("A")).copy(title = "Carbonara", postNote = "Try on Sunday")
-        posts.updateText(post, before.title, true, "", false, before.postNote)
+        posts.updateText(post, before.title, true, "", false, before.postNote, at = 1L)
         posts.delete(post, at = 1)
 
         dao.restore(post)
@@ -193,7 +193,7 @@ class RecentlyDeletedTest {
     fun emptyNowRemovesTheTagsAndTheThumbnail() = runTest {
         val post = addPost("A")
         val vegan = checkNotNull(db.tagDao().create("Vegan", PALETTE[0]))
-        db.tagDao().addToPost(post, vegan)
+        db.tagDao().addToPost(post, vegan, at = 1L)
         thumbnails.save("A", byteArrayOf(1))
         thumbnails.save("B", byteArrayOf(1))
         posts.delete(post, at = 1)
