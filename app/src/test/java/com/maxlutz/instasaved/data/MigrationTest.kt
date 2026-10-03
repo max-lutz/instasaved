@@ -3,11 +3,13 @@ package com.maxlutz.instasaved.data
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -85,5 +87,32 @@ class MigrationTest {
             Post(id = post.id, shortcode = "ABC123", url = "https://www.instagram.com/reel/ABC123/", addedAt = 7, seenInExport = true),
             post,
         )
+    }
+
+    @Test
+    fun migrates3To4WithEveryPostInToSortAndWorkingCollections() = runTest {
+        createDatabase(
+            3,
+            seed = listOf(
+                "INSERT INTO posts (shortcode, url, addedAt, seenInExport, title, titleHandEdited, description, " +
+                    "descriptionHandEdited, postNote) VALUES ('ABC123', 'https://www.instagram.com/p/ABC123/', 7, 0, " +
+                    "'Hi', 0, 'Hi. There', 1, 'note')",
+            ),
+        )
+
+        val db = openMigrated()
+        val post = db.postDao().get("ABC123")!!
+        assertEquals(listOf(post), db.postDao().observeToSort().first())
+        // The migrated reference still sends Posts to To sort when their Collection is deleted.
+        val recipes = db.collectionDao().create("Recipes", PALETTE[0])!!
+        db.postDao().setCollection(post.id, recipes)
+        db.collectionDao().deleteKeepingPosts(recipes)
+        val after = db.postDao().get("ABC123")!!
+        db.close()
+
+        assertNull(post.collectionId)
+        assertNull(post.deletionId)
+        assertEquals("note", post.postNote)
+        assertEquals(post, after)
     }
 }

@@ -19,9 +19,19 @@ interface PostDao {
     @Query("SELECT * FROM posts WHERE id = :id")
     fun observe(id: Long): Flow<Post?>
 
-    /** Posts in To sort, newest first. Every Post is in To sort until Collections exist. */
-    @Query("SELECT * FROM posts WHERE deletedAt IS NULL ORDER BY addedAt DESC, id DESC")
+    /** Posts in To sort (no Collection), newest first. */
+    @Query("SELECT * FROM posts WHERE collectionId IS NULL AND deletedAt IS NULL ORDER BY addedAt DESC, id DESC")
     fun observeToSort(): Flow<List<Post>>
+
+    /** Posts in the Collection, newest first. */
+    @Query(
+        "SELECT * FROM posts WHERE collectionId = :collectionId AND deletedAt IS NULL ORDER BY addedAt DESC, id DESC",
+    )
+    fun observeInCollection(collectionId: Long): Flow<List<Post>>
+
+    /** Puts the Post in a Collection, or in To sort when [collectionId] is null. */
+    @Query("UPDATE posts SET collectionId = :collectionId WHERE id = :id")
+    suspend fun setCollection(id: Long, collectionId: Long?)
 
     /** Saves the user's text and its hand-edited flags, leaving everything else (e.g. deletion) as stored. */
     @Query(

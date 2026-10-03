@@ -7,12 +7,14 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Post::class], version = 3)
+@Database(entities = [Post::class, Collection::class, CollectionDeletion::class], version = 4)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun postDao(): PostDao
 
+    abstract fun collectionDao(): CollectionDao
+
     companion object {
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
 
         fun open(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "instasaved.db")
@@ -51,5 +53,30 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
             "`postNote` TEXT NOT NULL DEFAULT ''",
             "`deletedAt` INTEGER",
         ).forEach { db.execSQL("ALTER TABLE `posts` ADD COLUMN $it") }
+    }
+}
+
+/** Adds Collections, and each Post's Collection plus the Collection deletion it went with. Every Post is in To sort. */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE `collections` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`name` TEXT NOT NULL COLLATE NOCASE, `color` INTEGER NOT NULL, `note` TEXT NOT NULL)",
+        )
+        db.execSQL("CREATE UNIQUE INDEX `index_collections_name` ON `collections` (`name`)")
+        db.execSQL(
+            "CREATE TABLE `collection_deletions` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`collectionName` TEXT NOT NULL, `collectionColor` INTEGER NOT NULL, `collectionNote` TEXT NOT NULL)",
+        )
+        db.execSQL(
+            "ALTER TABLE `posts` ADD COLUMN `collectionId` INTEGER " +
+                "REFERENCES `collections`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL",
+        )
+        db.execSQL(
+            "ALTER TABLE `posts` ADD COLUMN `deletionId` INTEGER " +
+                "REFERENCES `collection_deletions`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL",
+        )
+        db.execSQL("CREATE INDEX `index_posts_collectionId` ON `posts` (`collectionId`)")
+        db.execSQL("CREATE INDEX `index_posts_deletionId` ON `posts` (`deletionId`)")
     }
 }

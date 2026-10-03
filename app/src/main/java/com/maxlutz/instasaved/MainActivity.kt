@@ -8,44 +8,28 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
+import androidx.room.withTransaction
+import com.maxlutz.instasaved.collections.CollectionScreen
+import com.maxlutz.instasaved.collections.CollectionsScreen
+import com.maxlutz.instasaved.data.Collection
 import com.maxlutz.instasaved.data.Post
 import com.maxlutz.instasaved.data.updateText
 import com.maxlutz.instasaved.detail.PostDetailScreen
+import com.maxlutz.instasaved.grid.ToSortScreen
 import com.maxlutz.instasaved.share.ShareIn
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
@@ -65,21 +49,77 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) handleShare(intent)
         setContent {
             MaterialTheme {
-                val posts by database.postDao().observeToSort().collectAsState(initial = emptyList())
+                val collections by database.collectionDao().observeAll().collectAsState(initial = emptyList())
+                val toSort by database.postDao().observeToSort().collectAsState(initial = emptyList())
+                var view by rememberSaveable(stateSaver = View.Saver) { mutableStateOf<View>(View.Home) }
                 var openPostId by rememberSaveable { mutableStateOf<Long?>(null) }
                 val snackbar = remember { SnackbarHostState() }
                 val deletedMessage = stringResource(R.string.post_deleted)
                 val undoLabel = stringResource(R.string.undo)
+                val nameTakenMessage = stringResource(R.string.collection_name_taken)
+                val showNameTaken: () -> Unit = { lifecycleScope.launch { snackbar.showSnackbar(nameTakenMessage) } }
+                val openPost: (Post) -> Unit = { openPostId = it.id }
 
                 when (val id = openPostId) {
-                    null -> ToSortScreen(posts, snackbar, onOpen = { openPostId = it.id })
+                    null -> when (val shown = view) {
+                        View.Home -> CollectionsScreen(
+                            toSortCount = toSort.size,
+                            collections = collections,
+                            snackbar = snackbar,
+                            onOpenToSort = { view = View.ToSort },
+                            onOpenCollection = { view = View.InCollection(it.id) },
+                            onCreate = { createCollection(it, onNameTaken = showNameTaken) },
+                        )
+                        View.ToSort -> {
+                            BackHandler { view = View.Home }
+                            ToSortScreen(toSort, snackbar, onBack = { view = View.Home }, onOpen = openPost)
+                        }
+                        is View.InCollection -> {
+                            BackHandler { view = View.Home }
+                            val collection = collections.find { it.collection.id == shown.id }?.collection
+                            val posts by remember(shown.id) { database.postDao().observeInCollection(shown.id) }
+                                .collectAsState(initial = emptyList())
+                            // Null until the list loads, and after the Collection is deleted.
+                            collection?.let {
+                                CollectionScreen(
+                                    collection = it,
+                                    posts = posts,
+                                    otherNames = collections.map { c -> c.collection.name } - it.name,
+                                    snackbar = snackbar,
+                                    onBack = { view = View.Home },
+                                    onOpen = openPost,
+                                    onSave = { edited ->
+                                        lifecycleScope.launch {
+                                            if (!database.collectionDao().update(edited)) showNameTaken()
+                                        }
+                                    },
+                                    onDeleteKeepingPosts = {
+                                        view = View.Home
+                                        lifecycleScope.launch { database.collectionDao().deleteKeepingPosts(it.id) }
+                                    },
+                                    onDeleteWithPosts = {
+                                        view = View.Home
+                                        val at = System.currentTimeMillis()
+                                        lifecycleScope.launch { database.collectionDao().deleteWithPosts(it.id, at) }
+                                    },
+                                )
+                            }
+                        }
+                    }
                     else -> {
                         BackHandler { openPostId = null }
                         val post by remember(id) { database.postDao().observe(id) }.collectAsState(initial = null)
                         post?.let {
                             PostDetailScreen(
                                 it,
+                                collections = collections.map { c -> c.collection },
                                 onTextChange = ::saveText,
+                                onCollectionChange = { collectionId ->
+                                    lifecycleScope.launch { database.postDao().setCollection(it.id, collectionId) }
+                                },
+                                onNewCollection = { collection ->
+                                    createCollection(collection, onNameTaken = showNameTaken, thenAssign = it.id)
+                                },
                                 onOpenInInstagram = { openInInstagram(it) },
                                 onDelete = {
                                     openPostId = null
@@ -91,6 +131,18 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /** Creates the Collection, then puts the Post [thenAssign] in it, if any. */
+    private fun createCollection(collection: Collection, onNameTaken: () -> Unit, thenAssign: Long? = null) {
+        lifecycleScope.launch {
+            database.withTransaction {
+                // The dialog already checks the name; this only fails if it was taken meanwhile.
+                val id = database.collectionDao().create(collection.name, collection.color, collection.note)
+                    ?: return@withTransaction onNameTaken()
+                if (thenAssign != null) database.postDao().setCollection(thenAssign, id)
             }
         }
     }
@@ -133,66 +185,29 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ToSortScreen(posts: List<Post>, snackbar: SnackbarHostState, onOpen: (Post) -> Unit) {
-    Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.to_sort)) }) },
-        snackbarHost = { SnackbarHost(snackbar) },
-    ) { padding ->
-        if (posts.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text(
-                    stringResource(R.string.to_sort_empty),
-                    style = MaterialTheme.typography.bodyLarge,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                modifier = Modifier.fillMaxSize().padding(padding),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                items(posts, key = { it.id }) { PlaceholderCard(it, onClick = { onOpen(it) }) }
-            }
-        }
-    }
-}
+/** Which list of Posts is shown under an opened Post. */
+private sealed interface View {
+    data object Home : View
+    data object ToSort : View
+    data class InCollection(val id: Long) : View
 
-/** Stands in for a Post's Thumbnail, which doesn't exist yet. */
-@Composable
-private fun PlaceholderCard(post: Post, onClick: () -> Unit) {
-    Surface(Modifier.aspectRatio(1f).clickable(onClick = onClick), color = MaterialTheme.colorScheme.surfaceVariant) {
-        Box(Modifier.padding(4.dp), contentAlignment = Alignment.Center) {
-            Text(
-                post.title.ifBlank { post.shortcode },
-                style = MaterialTheme.typography.labelSmall,
-                textAlign = TextAlign.Center,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Preview
-@Composable
-private fun ToSortScreenPreview() {
-    MaterialTheme {
-        ToSortScreen(
-            listOf("C1a2B3c4D5e", "B9x_Y-z0", "AbCdEf").mapIndexed { i, shortcode ->
-                Post(id = i + 1L, shortcode = shortcode, url = "https://www.instagram.com/p/$shortcode/", addedAt = 0)
+    companion object {
+        val Saver = Saver<View, Long>(
+            save = {
+                when (it) {
+                    Home -> -1L
+                    ToSort -> 0L
+                    is InCollection -> it.id
+                }
             },
-            remember { SnackbarHostState() },
-            onOpen = {},
+            // Collection ids start at 1.
+            restore = {
+                when (it) {
+                    -1L -> Home
+                    0L -> ToSort
+                    else -> InCollection(it)
+                }
+            },
         )
     }
-}
-
-@Preview
-@Composable
-private fun EmptyToSortScreenPreview() {
-    MaterialTheme { ToSortScreen(emptyList(), remember { SnackbarHostState() }, onOpen = {}) }
 }
