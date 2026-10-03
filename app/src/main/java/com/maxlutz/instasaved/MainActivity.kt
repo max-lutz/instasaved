@@ -27,10 +27,12 @@ import com.maxlutz.instasaved.collections.CollectionScreen
 import com.maxlutz.instasaved.collections.CollectionsScreen
 import com.maxlutz.instasaved.data.Collection
 import com.maxlutz.instasaved.data.Post
+import com.maxlutz.instasaved.data.Tag
 import com.maxlutz.instasaved.data.updateText
 import com.maxlutz.instasaved.detail.PostDetailScreen
 import com.maxlutz.instasaved.grid.ToSortScreen
 import com.maxlutz.instasaved.share.ShareIn
+import com.maxlutz.instasaved.tags.TagPickerDialog
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -42,15 +44,28 @@ class MainActivity : ComponentActivity() {
     // Text is saved on every keystroke; the lock keeps the saves in typing order.
     private val textSaves = Mutex()
 
+    /** The Post just added by Share-in, offered for tagging on the spot. */
+    private var quickTagPostId by mutableStateOf<Long?>(null)
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        quickTagPostId?.let { outState.putLong(QUICK_TAG_POST_ID, it) }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (savedInstanceState?.containsKey(QUICK_TAG_POST_ID) == true) {
+            quickTagPostId = savedInstanceState.getLong(QUICK_TAG_POST_ID)
+        }
         // Not on recreation (e.g. rotation): the share was already handled.
         if (savedInstanceState == null) handleShare(intent)
         setContent {
             MaterialTheme {
                 val collections by database.collectionDao().observeAll().collectAsState(initial = emptyList())
                 val toSort by database.postDao().observeToSort().collectAsState(initial = emptyList())
+                val tags by database.tagDao().observeAll().collectAsState(initial = emptyList())
+                val allTags = tags.map { it.tag }
                 var view by rememberSaveable(stateSaver = View.Saver) { mutableStateOf<View>(View.Home) }
                 var openPostId by rememberSaveable { mutableStateOf<Long?>(null) }
                 val snackbar = remember { SnackbarHostState() }
@@ -58,6 +73,10 @@ class MainActivity : ComponentActivity() {
                 val undoLabel = stringResource(R.string.undo)
                 val nameTakenMessage = stringResource(R.string.collection_name_taken)
                 val showNameTaken: () -> Unit = { lifecycleScope.launch { snackbar.showSnackbar(nameTakenMessage) } }
+                val tagNameTakenMessage = stringResource(R.string.tag_name_taken)
+                val showTagNameTaken: () -> Unit = {
+                    lifecycleScope.launch { snackbar.showSnackbar(tagNameTakenMessage) }
+                }
                 val openPost: (Post) -> Unit = { openPostId = it.id }
 
                 when (val id = openPostId) {
@@ -69,6 +88,13 @@ class MainActivity : ComponentActivity() {
                             onOpenToSort = { view = View.ToSort },
                             onOpenCollection = { view = View.InCollection(it.id) },
                             onCreate = { createCollection(it, onNameTaken = showNameTaken) },
+                            tags = tags,
+                            onCreateTag = { createTag(it, onNameTaken = showTagNameTaken) },
+                            onSaveTag = { edited ->
+                                lifecycleScope.launch {
+                                    if (!database.tagDao().update(edited)) showTagNameTaken()
+                                }
+                            },
                         )
                         View.ToSort -> {
                             BackHandler { view = View.Home }
@@ -109,6 +135,8 @@ class MainActivity : ComponentActivity() {
                     else -> {
                         BackHandler { openPostId = null }
                         val post by remember(id) { database.postDao().observe(id) }.collectAsState(initial = null)
+                        val postTags by remember(id) { database.tagDao().observeOnPost(id) }
+                            .collectAsState(initial = emptyList())
                         post?.let {
                             PostDetailScreen(
                                 it,
@@ -120,6 +148,11 @@ class MainActivity : ComponentActivity() {
                                 onNewCollection = { collection ->
                                     createCollection(collection, onNameTaken = showNameTaken, thenAssign = it.id)
                                 },
+                                tags = allTags,
+                                postTags = postTags,
+                                onAddTag = { tag -> addTag(it.id, tag) },
+                                onRemoveTag = { tag -> removeTag(it.id, tag) },
+                                onNewTag = { tag -> createTag(tag, onNameTaken = showTagNameTaken, thenAddTo = it.id) },
                                 onOpenInInstagram = { openInInstagram(it) },
                                 onDelete = {
                                     openPostId = null
@@ -130,6 +163,21 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
+                }
+
+                quickTagPostId?.let { id ->
+                    val postTags by remember(id) { database.tagDao().observeOnPost(id) }
+                        .collectAsState(initial = emptyList())
+                    TagPickerDialog(
+                        title = stringResource(R.string.share_in_added),
+                        message = stringResource(R.string.share_in_tag_it),
+                        tags = allTags,
+                        onPost = postTags,
+                        onAdd = { addTag(id, it) },
+                        onRemove = { removeTag(id, it) },
+                        onNew = { createTag(it, onNameTaken = showTagNameTaken, thenAddTo = id) },
+                        onDismiss = { quickTagPostId = null },
+                    )
                 }
             }
         }
@@ -145,6 +193,26 @@ class MainActivity : ComponentActivity() {
                 if (thenAssign != null) database.postDao().setCollection(thenAssign, id)
             }
         }
+    }
+
+    /** Creates the Tag, then puts it on the Post [thenAddTo], if any. */
+    private fun createTag(tag: Tag, onNameTaken: () -> Unit, thenAddTo: Long? = null) {
+        lifecycleScope.launch {
+            database.withTransaction {
+                // The dialog already checks the name; this only fails if it was taken meanwhile.
+                val id = database.tagDao().create(tag.name, tag.color) ?: return@withTransaction onNameTaken()
+                if (thenAddTo != null) database.tagDao().addToPost(thenAddTo, id)
+            }
+        }
+    }
+
+    // The picker stops offering a 5th Tag; the DAO refuses one anyway.
+    private fun addTag(postId: Long, tag: Tag) {
+        lifecycleScope.launch { database.tagDao().addToPost(postId, tag.id) }
+    }
+
+    private fun removeTag(postId: Long, tag: Tag) {
+        lifecycleScope.launch { database.tagDao().removeFromPost(postId, tag.id) }
     }
 
     private fun saveText(post: Post) {
@@ -174,8 +242,12 @@ class MainActivity : ComponentActivity() {
         if (intent.action != Intent.ACTION_SEND) return
         val text = intent.getStringExtra(Intent.EXTRA_TEXT).orEmpty()
         lifecycleScope.launch {
-            val message = when (ShareIn(database.postDao()).receive(text)) {
-                is ShareIn.Result.Added -> R.string.share_in_added
+            val message = when (val result = ShareIn(database.postDao()).receive(text)) {
+                // Said by the quick-tag step instead.
+                is ShareIn.Result.Added -> {
+                    quickTagPostId = result.post.id
+                    return@launch
+                }
                 is ShareIn.Result.AlreadySaved -> R.string.share_in_already_saved
                 is ShareIn.Result.PreviouslyDeleted -> R.string.share_in_previously_deleted
                 ShareIn.Result.NotAPostLink -> R.string.share_in_not_a_post_link
@@ -186,6 +258,8 @@ class MainActivity : ComponentActivity() {
 }
 
 /** Which list of Posts is shown under an opened Post. */
+private const val QUICK_TAG_POST_ID = "quickTagPostId"
+
 private sealed interface View {
     data object Home : View
     data object ToSort : View

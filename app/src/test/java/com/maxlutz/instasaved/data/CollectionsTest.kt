@@ -99,9 +99,9 @@ class CollectionsTest {
     }
 
     @Test
-    fun sameCollectionNameIgnoresCaseAndSurroundingSpaces() {
-        assertTrue(sameCollectionName("Recipes", " recipes "))
-        assertFalse(sameCollectionName("Recipes", "Recipe"))
+    fun sameNameIgnoresCaseAndSurroundingSpaces() {
+        assertTrue(sameName("Recipes", " recipes "))
+        assertFalse(sameName("Recipes", "Recipe"))
     }
 
     // Listing

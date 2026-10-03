@@ -7,7 +7,8 @@ val PALETTE: List<Int> = listOf(
 ).map { it.toInt() }
 
 /**
- * The color a new Collection gets, given the colors already [used]: the least-used palette color, earliest in the
- * palette on a tie. Creating one after another walks the palette in order; a color freed by a deletion comes back first.
+ * The color a new Collection (or Tag) gets, given the colors Collections (or Tags) already [used]: the least-used
+ * palette color, earliest in the palette on a tie. Creating one after another walks the palette in order; a color freed
+ * by a deletion comes back first.
  */
 fun nextColor(used: List<Int>): Int = PALETTE.minBy { color -> used.count { it == color } }

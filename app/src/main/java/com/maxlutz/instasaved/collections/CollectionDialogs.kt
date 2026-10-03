@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.dp
 import com.maxlutz.instasaved.R
 import com.maxlutz.instasaved.data.Collection
 import com.maxlutz.instasaved.data.PALETTE
-import com.maxlutz.instasaved.data.sameCollectionName
+import com.maxlutz.instasaved.data.sameName
 
 @Composable
 fun ColorDot(color: Int, modifier: Modifier = Modifier, size: Dp = 12.dp) {
@@ -59,7 +59,7 @@ fun CollectionEditorDialog(
     var name by rememberSaveable { mutableStateOf(initial.name) }
     var color by rememberSaveable { mutableIntStateOf(initial.color) }
     var note by rememberSaveable { mutableStateOf(initial.note) }
-    val taken = otherNames.any { sameCollectionName(it, name) }
+    val taken = otherNames.any { sameName(it, name) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -100,7 +100,7 @@ fun CollectionEditorDialog(
 }
 
 @Composable
-private fun ColorPicker(selected: Int, onPick: (Int) -> Unit) {
+internal fun ColorPicker(selected: Int, onPick: (Int) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         PALETTE.chunked(6).forEachIndexed { row, colors ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

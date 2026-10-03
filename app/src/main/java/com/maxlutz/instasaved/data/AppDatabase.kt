@@ -7,14 +7,19 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Post::class, Collection::class, CollectionDeletion::class], version = 4)
+@Database(
+    entities = [Post::class, Collection::class, CollectionDeletion::class, Tag::class, PostTag::class],
+    version = 5,
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun postDao(): PostDao
 
     abstract fun collectionDao(): CollectionDao
 
+    abstract fun tagDao(): TagDao
+
     companion object {
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
 
         fun open(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "instasaved.db")
@@ -78,5 +83,23 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         )
         db.execSQL("CREATE INDEX `index_posts_collectionId` ON `posts` (`collectionId`)")
         db.execSQL("CREATE INDEX `index_posts_deletionId` ON `posts` (`deletionId`)")
+    }
+}
+
+/** Adds Tags and the Tags on each Post. No Post has a Tag yet. */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE `tags` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`name` TEXT NOT NULL COLLATE NOCASE, `color` INTEGER NOT NULL)",
+        )
+        db.execSQL("CREATE UNIQUE INDEX `index_tags_name` ON `tags` (`name`)")
+        db.execSQL(
+            "CREATE TABLE `post_tags` (`postId` INTEGER NOT NULL, `tagId` INTEGER NOT NULL, " +
+                "PRIMARY KEY(`postId`, `tagId`), " +
+                "FOREIGN KEY(`postId`) REFERENCES `posts`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                "FOREIGN KEY(`tagId`) REFERENCES `tags`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)",
+        )
+        db.execSQL("CREATE INDEX `index_post_tags_tagId` ON `post_tags` (`tagId`)")
     }
 }

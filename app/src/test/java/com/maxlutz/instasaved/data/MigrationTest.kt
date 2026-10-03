@@ -115,4 +115,28 @@ class MigrationTest {
         assertEquals("note", post.postNote)
         assertEquals(post, after)
     }
+
+    @Test
+    fun migrates4To5WithNoTagsAndWorkingTagging() = runTest {
+        createDatabase(
+            4,
+            seed = listOf(
+                "INSERT INTO posts (shortcode, url, addedAt, seenInExport, title, titleHandEdited, description, " +
+                    "descriptionHandEdited, postNote) VALUES ('ABC123', 'https://www.instagram.com/p/ABC123/', 7, 0, " +
+                    "'Hi', 0, 'Hi. There', 1, 'note')",
+            ),
+        )
+
+        val db = openMigrated()
+        val post = db.postDao().get("ABC123")!!
+        val tagsBefore = db.tagDao().observeOnPost(post.id).first()
+        val vegan = db.tagDao().create("Vegan", PALETTE[0])!!
+        db.tagDao().addToPost(post.id, vegan)
+        val tagsAfter = db.tagDao().observeOnPost(post.id).first().map { it.name }
+        db.close()
+
+        assertEquals(emptyList<Tag>(), tagsBefore)
+        assertEquals(listOf("Vegan"), tagsAfter)
+        assertEquals("note", post.postNote)
+    }
 }
