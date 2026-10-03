@@ -26,21 +26,29 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import com.maxlutz.instasaved.R
 import com.maxlutz.instasaved.data.Post
+import java.io.File
 
-/** A view of Posts (To sort, a Collection) as a 3-column grid, with an optional [header] above it. */
+/**
+ * A view of Posts (To sort, a Collection) as a 3-column grid, with an optional [header] above it.
+ *
+ * @param thumbnailOf the Post's Thumbnail file, or null while it has none.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PostGridScreen(
     title: @Composable () -> Unit,
     posts: List<Post>,
+    thumbnailOf: (Post) -> File?,
     emptyText: String,
     snackbar: SnackbarHostState,
     onBack: () -> Unit,
@@ -76,34 +84,47 @@ fun PostGridScreen(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     if (header != null) item(key = "header", span = { GridItemSpan(maxLineSpan) }) { header() }
-                    items(posts, key = { it.id }) { PlaceholderCard(it, onClick = { onOpen(it) }) }
+                    items(posts, key = { it.id }) { PostCard(it, thumbnailOf(it), onClick = { onOpen(it) }) }
                 }
             }
         }
     }
 }
 
-/** Stands in for a Post's Thumbnail, which doesn't exist yet. */
+/** The Post's Thumbnail, or a placeholder card naming its owner until there is one. */
 @Composable
-private fun PlaceholderCard(post: Post, onClick: () -> Unit) {
+private fun PostCard(post: Post, thumbnail: File?, onClick: () -> Unit) {
+    // The owner is only known once Sync has seen the Post.
+    val label = post.ownerName.ifBlank { post.ownerUsername }.ifBlank { post.title }.ifBlank { post.shortcode }
     Surface(Modifier.aspectRatio(1f).clickable(onClick = onClick), color = MaterialTheme.colorScheme.surfaceVariant) {
-        Box(Modifier.padding(4.dp), contentAlignment = Alignment.Center) {
-            Text(
-                post.title.ifBlank { post.shortcode },
-                style = MaterialTheme.typography.labelSmall,
-                textAlign = TextAlign.Center,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis,
-            )
+        if (thumbnail != null) {
+            AsyncImage(thumbnail, contentDescription = label, contentScale = ContentScale.Crop)
+        } else {
+            Box(Modifier.padding(4.dp), contentAlignment = Alignment.Center) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelSmall,
+                    textAlign = TextAlign.Center,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
 
 @Composable
-fun ToSortScreen(posts: List<Post>, snackbar: SnackbarHostState, onBack: () -> Unit, onOpen: (Post) -> Unit) {
+fun ToSortScreen(
+    posts: List<Post>,
+    thumbnailOf: (Post) -> File?,
+    snackbar: SnackbarHostState,
+    onBack: () -> Unit,
+    onOpen: (Post) -> Unit,
+) {
     PostGridScreen(
         title = { Text(stringResource(R.string.to_sort)) },
         posts = posts,
+        thumbnailOf = thumbnailOf,
         emptyText = stringResource(R.string.to_sort_empty),
         snackbar = snackbar,
         onBack = onBack,
@@ -116,9 +137,12 @@ fun ToSortScreen(posts: List<Post>, snackbar: SnackbarHostState, onBack: () -> U
 private fun ToSortScreenPreview() {
     MaterialTheme {
         ToSortScreen(
-            listOf("C1a2B3c4D5e", "B9x_Y-z0", "AbCdEf").mapIndexed { i, shortcode ->
-                Post(id = i + 1L, shortcode = shortcode, url = "https://www.instagram.com/p/$shortcode/", addedAt = 0)
+            listOf("C1a2B3c4D5e" to "Pasta Grannies", "B9x_Y-z0" to "", "AbCdEf" to "").mapIndexed { i, post ->
+                val (shortcode, owner) = post
+                val url = "https://www.instagram.com/p/$shortcode/"
+                Post(id = i + 1L, shortcode = shortcode, url = url, addedAt = 0, ownerName = owner)
             },
+            thumbnailOf = { null },
             remember { SnackbarHostState() },
             onBack = {},
             onOpen = {},
@@ -129,5 +153,7 @@ private fun ToSortScreenPreview() {
 @Preview
 @Composable
 private fun EmptyToSortScreenPreview() {
-    MaterialTheme { ToSortScreen(emptyList(), remember { SnackbarHostState() }, onBack = {}, onOpen = {}) }
+    MaterialTheme {
+        ToSortScreen(emptyList(), thumbnailOf = { null }, remember { SnackbarHostState() }, onBack = {}, onOpen = {})
+    }
 }

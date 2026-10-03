@@ -33,13 +33,16 @@ import com.maxlutz.instasaved.detail.PostDetailScreen
 import com.maxlutz.instasaved.grid.ToSortScreen
 import com.maxlutz.instasaved.share.ShareIn
 import com.maxlutz.instasaved.tags.TagPickerDialog
+import com.maxlutz.instasaved.thumbnails.ThumbnailWorker
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.io.File
 
 class MainActivity : ComponentActivity() {
     private val database by lazy { (application as InstaSavedApplication).database }
+    private val thumbnailStore by lazy { (application as InstaSavedApplication).thumbnailStore }
 
     // Text is saved on every keystroke; the lock keeps the saves in typing order.
     private val textSaves = Mutex()
@@ -60,12 +63,17 @@ class MainActivity : ComponentActivity() {
         }
         // Not on recreation (e.g. rotation): the share was already handled.
         if (savedInstanceState == null) handleShare(intent)
+        ThumbnailWorker.scheduleRetries(this)
         setContent {
             MaterialTheme {
                 val collections by database.collectionDao().observeAll().collectAsState(initial = emptyList())
                 val toSort by database.postDao().observeToSort().collectAsState(initial = emptyList())
                 val tags by database.tagDao().observeAll().collectAsState(initial = emptyList())
                 val allTags = tags.map { it.tag }
+                val withThumbnail by thumbnailStore.shortcodes.collectAsState()
+                val thumbnailOf: (Post) -> File? = {
+                    if (it.shortcode in withThumbnail) thumbnailStore.file(it.shortcode) else null
+                }
                 var view by rememberSaveable(stateSaver = View.Saver) { mutableStateOf<View>(View.Home) }
                 var openPostId by rememberSaveable { mutableStateOf<Long?>(null) }
                 val snackbar = remember { SnackbarHostState() }
@@ -98,7 +106,13 @@ class MainActivity : ComponentActivity() {
                         )
                         View.ToSort -> {
                             BackHandler { view = View.Home }
-                            ToSortScreen(toSort, snackbar, onBack = { view = View.Home }, onOpen = openPost)
+                            ToSortScreen(
+                                toSort,
+                                thumbnailOf,
+                                snackbar,
+                                onBack = { view = View.Home },
+                                onOpen = openPost,
+                            )
                         }
                         is View.InCollection -> {
                             BackHandler { view = View.Home }
@@ -110,6 +124,7 @@ class MainActivity : ComponentActivity() {
                                 CollectionScreen(
                                     collection = it,
                                     posts = posts,
+                                    thumbnailOf = thumbnailOf,
                                     otherNames = collections.map { c -> c.collection.name } - it.name,
                                     snackbar = snackbar,
                                     onBack = { view = View.Home },
@@ -245,6 +260,7 @@ class MainActivity : ComponentActivity() {
             val message = when (val result = ShareIn(database.postDao()).receive(text)) {
                 // Said by the quick-tag step instead.
                 is ShareIn.Result.Added -> {
+                    ThumbnailWorker.downloadNow(this@MainActivity)
                     quickTagPostId = result.post.id
                     return@launch
                 }

@@ -24,12 +24,14 @@ import com.maxlutz.instasaved.data.Collection
 import com.maxlutz.instasaved.data.PALETTE
 import com.maxlutz.instasaved.data.Post
 import com.maxlutz.instasaved.grid.PostGridScreen
+import java.io.File
 
 /** A Collection's Posts, its Collection Note above them, and editing or deleting the Collection. */
 @Composable
 fun CollectionScreen(
     collection: Collection,
     posts: List<Post>,
+    thumbnailOf: (Post) -> File?,
     otherNames: List<String>,
     snackbar: SnackbarHostState,
     onBack: () -> Unit,
@@ -49,6 +51,7 @@ fun CollectionScreen(
             }
         },
         posts = posts,
+        thumbnailOf = thumbnailOf,
         emptyText = stringResource(R.string.collection_empty),
         snackbar = snackbar,
         onBack = onBack,
@@ -104,6 +107,7 @@ private fun CollectionScreenPreview() {
         CollectionScreen(
             collection = Collection(1, "🍝 Pasta", PALETTE[0], "Weeknight dinners, nothing over 30 minutes."),
             posts = listOf(Post(id = 1, shortcode = "C1a2B3c4D5e", url = "", addedAt = 0, title = "Carbonara")),
+            thumbnailOf = { null },
             otherNames = emptyList(),
             snackbar = remember { SnackbarHostState() },
             onBack = {},

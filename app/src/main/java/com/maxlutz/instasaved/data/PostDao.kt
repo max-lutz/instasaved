@@ -29,6 +29,10 @@ interface PostDao {
     )
     fun observeInCollection(collectionId: Long): Flow<List<Post>>
 
+    /** Every Post not deleted: those whose Thumbnail download failed least first, then newest first. */
+    @Query("SELECT * FROM posts WHERE deletedAt IS NULL ORDER BY thumbnailFailures, addedAt DESC, id DESC")
+    suspend fun getAllFewestThumbnailFailuresFirst(): List<Post>
+
     /** Puts the Post in a Collection, or in To sort when [collectionId] is null. */
     @Query("UPDATE posts SET collectionId = :collectionId WHERE id = :id")
     suspend fun setCollection(id: Long, collectionId: Long?)
@@ -54,6 +58,14 @@ interface PostDao {
     /** Takes the Post back out of Recently deleted. */
     @Query("UPDATE posts SET deletedAt = NULL WHERE id = :id")
     suspend fun restore(id: Long)
+
+    /** Counts one more failed Thumbnail download. */
+    @Query("UPDATE posts SET thumbnailFailures = thumbnailFailures + 1, thumbnailFailedAt = :at WHERE id = :id")
+    suspend fun thumbnailFailed(id: Long, at: Long)
+
+    /** Forgets the failed Thumbnail downloads, now that one worked. */
+    @Query("UPDATE posts SET thumbnailFailures = 0, thumbnailFailedAt = NULL WHERE id = :id")
+    suspend fun thumbnailSaved(id: Long)
 }
 
 suspend fun PostDao.updateText(post: Post) = updateText(

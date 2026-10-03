@@ -18,6 +18,10 @@ import androidx.room.PrimaryKey
  * @property collectionId the Collection the Post is in; null means To sort. A deleted Collection leaves it null.
  * @property deletionId set when the Post was deleted together with its Collection: the [CollectionDeletion] to
  *   recreate that Collection from on restore (ADR-0012).
+ * @property ownerUsername the Instagram account that posted it, as the Export gives it; empty until Sync fills it.
+ * @property ownerName that account's display name; empty until Sync fills it.
+ * @property thumbnailFailures how many times in a row downloading the Thumbnail failed; 0 once it is saved.
+ * @property thumbnailFailedAt when it last failed, in epoch milliseconds: the retry waits from then (ADR-0008).
  */
 @Entity(
     tableName = "posts",
@@ -42,4 +46,8 @@ data class Post(
     val deletedAt: Long? = null,
     val collectionId: Long? = null,
     val deletionId: Long? = null,
+    val ownerUsername: String = "",
+    val ownerName: String = "",
+    val thumbnailFailures: Int = 0,
+    val thumbnailFailedAt: Long? = null,
 )

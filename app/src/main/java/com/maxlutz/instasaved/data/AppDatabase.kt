@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [Post::class, Collection::class, CollectionDeletion::class, Tag::class, PostTag::class],
-    version = 5,
+    version = 6,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun postDao(): PostDao
@@ -19,7 +19,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun tagDao(): TagDao
 
     companion object {
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
 
         fun open(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "instasaved.db")
@@ -101,5 +101,17 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
                 "FOREIGN KEY(`tagId`) REFERENCES `tags`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)",
         )
         db.execSQL("CREATE INDEX `index_post_tags_tagId` ON `post_tags` (`tagId`)")
+    }
+}
+
+/** Adds each Post's owner, unknown so far, and its failed Thumbnail downloads: none yet, so every Post is tried. */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        listOf(
+            "`ownerUsername` TEXT NOT NULL DEFAULT ''",
+            "`ownerName` TEXT NOT NULL DEFAULT ''",
+            "`thumbnailFailures` INTEGER NOT NULL DEFAULT 0",
+            "`thumbnailFailedAt` INTEGER",
+        ).forEach { db.execSQL("ALTER TABLE `posts` ADD COLUMN $it") }
     }
 }

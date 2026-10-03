@@ -139,4 +139,29 @@ class MigrationTest {
         assertEquals(listOf("Vegan"), tagsAfter)
         assertEquals("note", post.postNote)
     }
+
+    @Test
+    fun migrates5To6WithNoOwnerAndEveryThumbnailStillToTry() = runTest {
+        createDatabase(
+            5,
+            seed = listOf(
+                "INSERT INTO posts (shortcode, url, addedAt, seenInExport, title, titleHandEdited, description, " +
+                    "descriptionHandEdited, postNote) VALUES ('ABC123', 'https://www.instagram.com/p/ABC123/', 7, 0, " +
+                    "'Hi', 0, 'Hi. There', 1, 'note')",
+            ),
+        )
+
+        val db = openMigrated()
+        val post = db.postDao().get("ABC123")!!
+        db.postDao().thumbnailFailed(post.id, at = 9)
+        val failed = db.postDao().getAllFewestThumbnailFailuresFirst().single()
+        db.close()
+
+        assertEquals("", post.ownerUsername)
+        assertEquals("", post.ownerName)
+        assertEquals("note", post.postNote)
+        assertEquals(0, post.thumbnailFailures)
+        assertNull(post.thumbnailFailedAt)
+        assertEquals(post.copy(thumbnailFailures = 1, thumbnailFailedAt = 9), failed)
+    }
 }
