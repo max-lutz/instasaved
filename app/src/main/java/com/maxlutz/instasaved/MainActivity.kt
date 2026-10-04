@@ -32,7 +32,9 @@ import com.maxlutz.instasaved.backup.BackupFormatException
 import com.maxlutz.instasaved.collections.CollectionScreen
 import com.maxlutz.instasaved.collections.CollectionsScreen
 import com.maxlutz.instasaved.data.Collection
+import com.maxlutz.instasaved.data.MAX_TAGS_PER_POST
 import com.maxlutz.instasaved.data.Post
+import com.maxlutz.instasaved.data.PostTag
 import com.maxlutz.instasaved.data.Tag
 import com.maxlutz.instasaved.data.updateText
 import com.maxlutz.instasaved.deleted.PurgeWorker
@@ -42,13 +44,16 @@ import com.maxlutz.instasaved.detail.PostDetailScreen
 import com.maxlutz.instasaved.grid.AllScreen
 import com.maxlutz.instasaved.grid.Browse
 import com.maxlutz.instasaved.grid.Browsing
+import com.maxlutz.instasaved.grid.BulkActions
 import com.maxlutz.instasaved.grid.PostSort
 import com.maxlutz.instasaved.grid.SearchScreen
 import com.maxlutz.instasaved.grid.ToSortScreen
 import com.maxlutz.instasaved.more.MoreScreen
 import com.maxlutz.instasaved.share.PostLink
 import com.maxlutz.instasaved.share.ShareIn
+import com.maxlutz.instasaved.tags.TagChange
 import com.maxlutz.instasaved.tags.TagPickerDialog
+import com.maxlutz.instasaved.tags.Tagging
 import com.maxlutz.instasaved.tags.TagsScreen
 import com.maxlutz.instasaved.tags.tagIdsInCollectionOf
 import com.maxlutz.instasaved.thumbnails.ThumbnailWorker
@@ -160,6 +165,25 @@ class MainActivity : ComponentActivity() {
                     lifecycleScope.launch { snackbar.showSnackbar(tagNameTakenMessage) }
                 }
                 val openPost: (Post) -> Unit = { openPostId = it.id }
+                val toSortName = stringResource(R.string.to_sort)
+                val bulk = BulkActions(
+                    collections = collections.map { it.collection },
+                    tags = allTags,
+                    postTags = postTags,
+                    posts = all,
+                    onTag = { posts, tag -> toggleTag(posts, tag, postTags, snackbar) },
+                    onNewTag = { posts, tag ->
+                        createTag(tag, posts, postTags, snackbar, onNameTaken = showTagNameTaken)
+                    },
+                    onMove = { posts, collectionId ->
+                        val name = collections.find { it.collection.id == collectionId }?.collection?.name
+                        move(posts, collectionId, name ?: toSortName, snackbar)
+                    },
+                    onMoveToNew = { posts, collection ->
+                        moveToNew(posts, collection, snackbar, onNameTaken = showNameTaken)
+                    },
+                    onDelete = { posts -> delete(posts, snackbar) },
+                )
                 val bottomBar: @Composable (Tab) -> Unit = { tab ->
                     BottomBar(tab, toSortCount = toSort.size) {
                         view = when (it) {
@@ -197,12 +221,13 @@ class MainActivity : ComponentActivity() {
                                 onNewCollection = { post, collection ->
                                     createCollection(collection, onNameTaken = showNameTaken, thenAssign = post.id)
                                 },
+                                bulk = bulk,
                                 bottomBar = { bottomBar(Tab.ToSort) },
                             )
                         }
                         View.Search -> {
                             BackHandler { view = View.Home }
-                            SearchScreen(all, thumbnailOf, browsing, snackbar, onOpen = openPost) {
+                            SearchScreen(all, thumbnailOf, browsing, snackbar, onOpen = openPost, bulk = bulk) {
                                 bottomBar(Tab.Search)
                             }
                         }
@@ -252,7 +277,14 @@ class MainActivity : ComponentActivity() {
                         }
                         View.All -> {
                             BackHandler { view = View.Home }
-                            AllScreen(all, thumbnailOf, snackbar, onBack = { view = View.Home }, onOpen = openPost)
+                            AllScreen(
+                                all,
+                                thumbnailOf,
+                                snackbar,
+                                onBack = { view = View.Home },
+                                onOpen = openPost,
+                                bulk = bulk,
+                            )
                         }
                         is View.InCollection -> {
                             BackHandler { view = View.Home }
@@ -287,6 +319,7 @@ class MainActivity : ComponentActivity() {
                                         val at = System.currentTimeMillis()
                                         lifecycleScope.launch { database.collectionDao().deleteWithPosts(it.id, at) }
                                     },
+                                    bulk = bulk,
                                 )
                             }
                         }
@@ -309,7 +342,7 @@ class MainActivity : ComponentActivity() {
                                 tags = allTags,
                                 postTags = tagsOnPost,
                                 collectionTagIds = remember(it.collectionId, all, postTags) {
-                                    tagIdsInCollectionOf(it, all, postTags)
+                                    tagIdsInCollectionOf(listOf(it), all, postTags)
                                 },
                                 onAddTag = { tag -> addTag(it.id, tag) },
                                 onRemoveTag = { tag -> removeTag(it.id, tag) },
@@ -453,6 +486,106 @@ class MainActivity : ComponentActivity() {
                 if (thenAddTo != null) database.tagDao().addToPost(thenAddTo, id, at = now())
             }
         }
+    }
+
+    /** Creates the Tag, then puts it on the [posts] that have room for it, and says which had none. */
+    private fun createTag(
+        tag: Tag,
+        posts: List<Post>,
+        postTags: List<PostTag>,
+        snackbar: SnackbarHostState,
+        onNameTaken: () -> Unit,
+    ) {
+        lifecycleScope.launch {
+            val change = database.withTransaction {
+                // The dialog already checks the name; this only fails if it was taken meanwhile.
+                val id = database.tagDao().create(tag.name, tag.color) ?: return@withTransaction null
+                Tagging(posts.map { it.id }, postTags).tap(id).also {
+                    database.tagDao().setOnPosts(id, it.addTo, it.removeFrom, at = now())
+                }
+            } ?: return@launch onNameTaken()
+            showFull(change, snackbar)
+        }
+    }
+
+    /**
+     * A tap on the Tag in the picker of the selected [posts]: puts it on them or takes it off them, see
+     * [Tagging.tap], and says which already had 4 Tags.
+     */
+    private fun toggleTag(posts: List<Post>, tag: Tag, postTags: List<PostTag>, snackbar: SnackbarHostState) {
+        val change = Tagging(posts.map { it.id }, postTags).tap(tag.id)
+        lifecycleScope.launch {
+            database.tagDao().setOnPosts(tag.id, change.addTo, change.removeFrom, at = now())
+            showFull(change, snackbar)
+        }
+    }
+
+    /** Says how many Posts a Tag was added to and how many were skipped, if any was. */
+    private suspend fun showFull(change: TagChange, snackbar: SnackbarHostState) {
+        if (change.full.isEmpty()) return
+        val added = change.addTo.size
+        val full = change.full.size
+        snackbar.currentSnackbarData?.dismiss()
+        snackbar.showSnackbar(
+            getString(
+                R.string.tag_added_some_full,
+                resources.getQuantityString(R.plurals.tag_added_to_posts, added, added),
+                resources.getQuantityString(R.plurals.posts_already_full, full, full, MAX_TAGS_PER_POST),
+            ),
+        )
+    }
+
+    /** Moves the [posts] to the Collection, or To sort when [collectionId] is null, then offers to undo it. */
+    private fun move(posts: List<Post>, collectionId: Long?, name: String, snackbar: SnackbarHostState) {
+        // The others are there already.
+        val moved = posts.filter { it.collectionId != collectionId }
+        if (moved.isEmpty()) return
+        lifecycleScope.launch {
+            database.postDao().setCollection(moved.map { it.id }, collectionId, at = now())
+            offerUndoMove(moved, name, snackbar)
+        }
+    }
+
+    /** Creates the Collection and moves the [posts] to it, then offers to undo the move. */
+    private fun moveToNew(
+        posts: List<Post>,
+        collection: Collection,
+        snackbar: SnackbarHostState,
+        onNameTaken: () -> Unit,
+    ) {
+        lifecycleScope.launch {
+            database.withTransaction {
+                // The dialog already checks the name; this only fails if it was taken meanwhile.
+                val id = database.collectionDao().create(collection.name, collection.color, collection.note)
+                    ?: return@withTransaction null
+                database.postDao().setCollection(posts.map { it.id }, id, at = now())
+                id
+            } ?: return@launch onNameTaken()
+            offerUndoMove(posts, collection.name.trim(), snackbar)
+        }
+    }
+
+    /** Says the Posts moved to [name]; Undo puts every one of [moved], as they were before, back where it was. */
+    private suspend fun offerUndoMove(moved: List<Post>, name: String, snackbar: SnackbarHostState) {
+        val message = resources.getQuantityString(R.plurals.posts_moved, moved.size, moved.size, name)
+        if (snackbar.askUndo(message)) database.postDao().undoMove(moved)
+    }
+
+    /** Moves the [posts] to Recently deleted, then offers to restore them all. */
+    private fun delete(posts: List<Post>, snackbar: SnackbarHostState) {
+        val ids = posts.map { it.id }
+        lifecycleScope.launch {
+            database.postDao().delete(ids, at = now())
+            val message = resources.getQuantityString(R.plurals.posts_deleted, ids.size, ids.size)
+            if (snackbar.askUndo(message)) database.recentlyDeletedDao().restore(ids)
+        }
+    }
+
+    /** Shows [message] with Undo, in place of what the snackbar was saying. Returns whether Undo was tapped. */
+    private suspend fun SnackbarHostState.askUndo(message: String): Boolean {
+        currentSnackbarData?.dismiss()
+        val result = showSnackbar(message, getString(R.string.undo), duration = SnackbarDuration.Long)
+        return result == SnackbarResult.ActionPerformed
     }
 
     private fun setCollection(postId: Long, collectionId: Long?) {

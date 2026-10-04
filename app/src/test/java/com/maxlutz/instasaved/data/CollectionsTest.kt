@@ -183,6 +183,51 @@ class CollectionsTest {
         assertEquals(listOf("C", "A"), inCollection(recipes))
     }
 
+    // Moving several Posts
+
+    @Test
+    fun movesSeveralPostsAtOnce() = runTest {
+        val recipes = create("Recipes")
+        val a = addPost("A", addedAt = 1L)
+        val b = addPost("B", addedAt = 2L)
+        addPost("C", addedAt = 3L)
+
+        posts.setCollection(listOf(a, b), recipes, at = 7L)
+
+        assertEquals(listOf("B", "A"), inCollection(recipes))
+        assertEquals(listOf("C"), toSort())
+        assertEquals(listOf(7L, 7L), listOf("A", "B").map { posts.get(it)?.modifiedAt })
+    }
+
+    @Test
+    fun undoingAMovePutsEveryPostBackWhereItWasAsItWas() = runTest {
+        val recipes = create("Recipes")
+        val travel = create("Travel")
+        val a = addPost("A", addedAt = 1L)
+        val b = addPost("B", addedAt = 2L)
+        posts.setCollection(a, recipes, at = 4L)
+        val before = listOf("A", "B").map { checkNotNull(posts.get(it)) }
+
+        posts.setCollection(listOf(a, b), travel, at = 7L)
+        posts.undoMove(before)
+
+        assertEquals(before, listOf("A", "B").map { posts.get(it) })
+    }
+
+    @Test
+    fun undoingAMoveLeavesInToSortAPostWhoseCollectionIsGone() = runTest {
+        val recipes = create("Recipes")
+        val a = addPost("A")
+        posts.setCollection(a, recipes, at = 4L)
+        val before = listOf(checkNotNull(posts.get("A")))
+
+        posts.setCollection(listOf(a), null, at = 7L)
+        collections.deleteKeepingPosts(recipes)
+        posts.undoMove(before)
+
+        assertEquals(listOf("A"), toSort())
+    }
+
     // Deleting
 
     @Test

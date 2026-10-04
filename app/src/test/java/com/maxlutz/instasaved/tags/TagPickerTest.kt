@@ -75,7 +75,7 @@ class TagPickerTest {
         val posts = listOf(opened, post(2, collectionId = 10), post(3, collectionId = 10), post(4, collectionId = 20))
         val postTags = listOf(PostTag(2, 1), PostTag(3, 1), PostTag(3, 2), PostTag(4, 3))
 
-        assertEquals(setOf(1L, 2L), tagIdsInCollectionOf(opened, posts, postTags))
+        assertEquals(setOf(1L, 2L), tagIdsInCollectionOf(listOf(opened), posts, postTags))
     }
 
     @Test
@@ -84,7 +84,7 @@ class TagPickerTest {
         val posts = listOf(opened, post(2, collectionId = 10))
         val postTags = listOf(PostTag(1, 1), PostTag(1, 2), PostTag(2, 2))
 
-        assertEquals(setOf(2L), tagIdsInCollectionOf(opened, posts, postTags))
+        assertEquals(setOf(2L), tagIdsInCollectionOf(listOf(opened), posts, postTags))
     }
 
     @Test
@@ -92,6 +92,105 @@ class TagPickerTest {
         val opened = post(1, collectionId = null)
         val posts = listOf(opened, post(2, collectionId = null))
 
-        assertEquals(emptySet<Long>(), tagIdsInCollectionOf(opened, posts, listOf(PostTag(2, 1))))
+        assertEquals(emptySet<Long>(), tagIdsInCollectionOf(listOf(opened), posts, listOf(PostTag(2, 1))))
+    }
+
+    @Test
+    fun severalPostsOfOneCollectionGetItsOtherPostsTags() {
+        val picked = listOf(post(1, collectionId = 10), post(2, collectionId = 10))
+        val posts = picked + post(3, collectionId = 10) + post(4, collectionId = 20)
+        val postTags = listOf(PostTag(1, 1), PostTag(3, 2), PostTag(4, 3))
+
+        assertEquals(setOf(2L), tagIdsInCollectionOf(picked, posts, postTags))
+    }
+
+    @Test
+    fun postsOfSeveralCollectionsHaveNoCollectionTags() {
+        val picked = listOf(post(1, collectionId = 10), post(2, collectionId = 20))
+        val posts = picked + post(3, collectionId = 10) + post(4, collectionId = 20)
+        val postTags = listOf(PostTag(3, 1), PostTag(4, 2))
+
+        assertEquals(emptySet<Long>(), tagIdsInCollectionOf(picked, posts, postTags))
+    }
+
+    @Test
+    fun aPostInToSortAmongThePickedLeavesNoCollectionTags() {
+        val picked = listOf(post(1, collectionId = 10), post(2, collectionId = null))
+        val posts = picked + post(3, collectionId = 10)
+
+        assertEquals(emptySet<Long>(), tagIdsInCollectionOf(picked, posts, listOf(PostTag(3, 1))))
+    }
+
+    // Tagging several Posts together
+
+    /** Posts 1 to 3; Tag 1 is on all, Tag 2 on Posts 1 and 2, Tag 3 on none. */
+    private val three = Tagging(
+        postIds = listOf(1, 2, 3),
+        postTags = listOf(PostTag(1, 1), PostTag(2, 1), PostTag(3, 1), PostTag(1, 2), PostTag(2, 2)),
+    )
+
+    @Test
+    fun aTagIsCarriedByAllSomeOrNoneOfThePosts() {
+        assertEquals(
+            listOf(Carried.All, Carried.Some, Carried.None),
+            listOf(three.carried(1), three.carried(2), three.carried(3)),
+        )
+        assertEquals(listOf(3, 2, 0), listOf(three.countCarrying(1), three.countCarrying(2), three.countCarrying(3)))
+        assertEquals(3, three.postCount)
+    }
+
+    @Test
+    fun otherPostsTagsDoNotCount() {
+        val tagging = Tagging(postIds = listOf(1), postTags = listOf(PostTag(1, 1), PostTag(2, 1), PostTag(2, 2)))
+
+        assertEquals(listOf(Carried.All, Carried.None), listOf(tagging.carried(1), tagging.carried(2)))
+    }
+
+    @Test
+    fun tappingATagCarriedByAllRemovesItFromAll() {
+        assertEquals(TagChange(removeFrom = listOf(1, 2, 3)), three.tap(1))
+    }
+
+    @Test
+    fun tappingATagCarriedBySomeAddsItToTheOthers() {
+        assertEquals(TagChange(addTo = listOf(3)), three.tap(2))
+    }
+
+    @Test
+    fun tappingATagCarriedByNoneAddsItToAll() {
+        assertEquals(TagChange(addTo = listOf(1, 2, 3)), three.tap(3))
+    }
+
+    @Test
+    fun addingSkipsThePostsThatAlreadyCarryFourTags() {
+        val fullPost = (1L..4L).map { PostTag(2, it) }
+        val tagging = Tagging(postIds = listOf(1, 2, 3), postTags = fullPost + PostTag(3, 1))
+
+        assertEquals(TagChange(addTo = listOf(1, 3), full = listOf(2)), tagging.tap(9))
+    }
+
+    @Test
+    fun aFullPostThatAlreadyCarriesTheTagIsNotSkipped() {
+        val fullPost = (1L..4L).map { PostTag(2, it) }
+        val tagging = Tagging(postIds = listOf(1, 2), postTags = fullPost)
+
+        assertEquals(TagChange(addTo = listOf(1)), tagging.tap(4))
+    }
+
+    @Test
+    fun aTagThatFitsOnNoPostCannotBeTapped() {
+        val tagging = Tagging(postIds = listOf(1, 2), postTags = (1L..4L).flatMap { listOf(PostTag(1, it), PostTag(2, it)) })
+
+        assertFalse(tagging.canTap(9))
+        assertTrue(tagging.canTap(1))
+        assertTrue(tagging.full)
+    }
+
+    @Test
+    fun thePostsAreNotFullWhileOneHasRoom() {
+        val tagging = Tagging(postIds = listOf(1, 2), postTags = (1L..4L).map { PostTag(1, it) })
+
+        assertTrue(tagging.canTap(9))
+        assertFalse(tagging.full)
     }
 }

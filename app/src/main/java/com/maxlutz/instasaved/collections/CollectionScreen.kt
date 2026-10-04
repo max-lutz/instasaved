@@ -25,6 +25,7 @@ import com.maxlutz.instasaved.data.PALETTE
 import com.maxlutz.instasaved.data.Post
 import com.maxlutz.instasaved.data.PostTag
 import com.maxlutz.instasaved.data.Tag
+import com.maxlutz.instasaved.grid.BulkActions
 import com.maxlutz.instasaved.grid.PostGridScreen
 import com.maxlutz.instasaved.grid.TagGrouping
 import com.maxlutz.instasaved.ui.InstaSavedTheme
@@ -38,6 +39,7 @@ import java.io.File
  *
  * @param tags every Tag, alphabetically.
  * @param postTags which Posts carry which Tags.
+ * @param bulk what selecting several Posts needs to act on them together.
  */
 @Composable
 fun CollectionScreen(
@@ -55,6 +57,7 @@ fun CollectionScreen(
     onSave: (Collection) -> Unit,
     onDeleteKeepingPosts: () -> Unit,
     onDeleteWithPosts: () -> Unit,
+    bulk: BulkActions,
 ) {
     var editing by rememberSaveable { mutableStateOf(false) }
     var deleting by rememberSaveable { mutableStateOf(false) }
@@ -98,6 +101,7 @@ fun CollectionScreen(
             }
         },
         grouping = if (groupByTag && anyTagged) TagGrouping(tags, postTags) else null,
+        bulk = bulk,
     )
 
     if (editing) {
@@ -151,6 +155,7 @@ private fun CollectionScreenPreview() {
             onSave = {},
             onDeleteKeepingPosts = {},
             onDeleteWithPosts = {},
+            bulk = BulkActions(),
         )
     }
 }
