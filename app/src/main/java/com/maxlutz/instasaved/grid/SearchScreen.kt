@@ -54,7 +54,7 @@ class Browsing(
 
 /**
  * Every Post, to search, sort, filter by Tag and group by Tag: the search box, then a row of chips (the sort order
- * and one per Tag), then the grid.
+ * and one per Tag), then the grid. A long-press on a Post selects among the Posts found, to act on them together.
  */
 @Composable
 fun SearchScreen(
@@ -63,15 +63,19 @@ fun SearchScreen(
     browsing: Browsing,
     snackbar: SnackbarHostState,
     onOpen: (Post) -> Unit,
+    bulk: BulkActions,
     bottomBar: @Composable () -> Unit,
 ) {
     val browse = browsing.browse
     val groups = remember(posts, browse, browsing.tags, browsing.postTags) {
         browse.arrange(posts, browsing.tags, browsing.postTags)
     }
+    val selection = rememberSelection(remember(groups) { groups.flatMap { it.posts } })
     Scaffold(
         topBar = {
-            Column(Modifier.statusBarsPadding()) {
+            if (selection.active) {
+                SelectionTopBar(selection, bulk)
+            } else Column(Modifier.statusBarsPadding()) {
                 SearchField(
                     query = browse.query,
                     onQueryChange = { browsing.onChange(browse.copy(query = it)) },
@@ -103,7 +107,13 @@ fun SearchScreen(
             when {
                 posts.isEmpty() -> EmptyText(stringResource(R.string.all_empty))
                 groups.isEmpty() -> EmptyText(stringResource(R.string.search_no_match))
-                else -> PostGrid(groups, grouped = browse.groupByTag, thumbnailOf = thumbnailOf, onOpen = onOpen)
+                else -> PostGrid(
+                    groups,
+                    grouped = browse.groupByTag,
+                    thumbnailOf = thumbnailOf,
+                    onOpen = onOpen,
+                    selection = selection,
+                )
             }
         }
     }
@@ -166,6 +176,7 @@ private fun SearchScreenGroupedByTagPreview() {
             browsing = Browsing(Browse(groupByTag = true), listOf(vegan), listOf(PostTag(2, 1), PostTag(3, 1))),
             snackbar = remember { SnackbarHostState() },
             onOpen = {},
+            bulk = BulkActions(),
             bottomBar = {},
         )
     }

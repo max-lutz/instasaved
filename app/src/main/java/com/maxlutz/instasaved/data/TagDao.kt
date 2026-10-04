@@ -79,4 +79,14 @@ abstract class TagDao {
     open suspend fun removeFromPost(postId: Long, tagId: Long, at: Long) {
         if (delete(postId, tagId) == 1) setPostModified(postId, at)
     }
+
+    /**
+     * Puts the Tag on the Posts [addTo] and takes it off the Posts [removeFrom], as one change. A Post that
+     * already carries [MAX_TAGS_PER_POST] other Tags is left as it is.
+     */
+    @Transaction
+    open suspend fun setOnPosts(tagId: Long, addTo: List<Long>, removeFrom: List<Long>, at: Long) {
+        addTo.forEach { addToPost(it, tagId, at) }
+        removeFrom.forEach { removeFromPost(it, tagId, at) }
+    }
 }

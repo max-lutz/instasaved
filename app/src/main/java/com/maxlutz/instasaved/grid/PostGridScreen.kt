@@ -1,7 +1,7 @@
 package com.maxlutz.instasaved.grid
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +54,7 @@ import java.io.File
  * @param thumbnailOf the Post's Thumbnail file, or null while it has none.
  * @param overlayOf a few words to write across the bottom of a Post's card, if any.
  * @param grouping the Tags to group the Posts by; null shows them as one grid.
+ * @param bulk what a long-press on a Post needs to select several and act on them together; null leaves it out.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,21 +70,27 @@ fun PostGridScreen(
     header: (@Composable () -> Unit)? = null,
     overlayOf: (@Composable (Post) -> String)? = null,
     grouping: TagGrouping? = null,
+    bulk: BulkActions? = null,
 ) {
+    val selection = rememberSelection(posts)
     val groups = remember(posts, grouping) {
         grouping?.let { Browse(groupByTag = true).arrange(posts, it.tags, it.postTags) } ?: listOf(PostGroup(null, posts))
     }
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = title,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), stringResource(R.string.back))
-                    }
-                },
-                actions = actions,
-            )
+            if (bulk != null && selection.active) {
+                SelectionTopBar(selection, bulk)
+            } else {
+                TopAppBar(
+                    title = title,
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(painterResource(R.drawable.ic_arrow_back), stringResource(R.string.back))
+                        }
+                    },
+                    actions = actions,
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
@@ -99,6 +106,7 @@ fun PostGridScreen(
                     onOpen = onOpen,
                     header = header,
                     overlayOf = overlayOf,
+                    selection = selection.takeIf { bulk != null },
                 )
             }
         }
@@ -121,7 +129,11 @@ internal fun EmptyText(text: String) {
     }
 }
 
-/** The 3-column grid of [groups], each under the name of its Tag when [grouped]. */
+/**
+ * The 3-column grid of [groups], each under the name of its Tag when [grouped].
+ *
+ * @param selection picks Posts on a long-press, then on a tap while it is active; null only opens them.
+ */
 @Composable
 internal fun PostGrid(
     groups: List<PostGroup>,
@@ -130,6 +142,7 @@ internal fun PostGrid(
     onOpen: (Post) -> Unit,
     header: (@Composable () -> Unit)? = null,
     overlayOf: (@Composable (Post) -> String)? = null,
+    selection: Selection? = null,
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
@@ -143,8 +156,15 @@ internal fun PostGrid(
                 item(key = "tag-${group.tag?.id}", span = { GridItemSpan(maxLineSpan) }) { GroupHeader(group) }
             }
             // A Post is shown once per Tag it carries.
-            items(group.posts, key = { "${group.tag?.id}-${it.id}" }) {
-                PostCard(it, thumbnailOf(it), overlay = overlayOf?.invoke(it), onClick = { onOpen(it) })
+            items(group.posts, key = { "${group.tag?.id}-${it.id}" }) { post ->
+                PostCard(
+                    post,
+                    thumbnailOf(post),
+                    overlay = overlayOf?.invoke(post),
+                    onClick = { if (selection?.active == true) selection.toggle(post) else onOpen(post) },
+                    onLongClick = selection?.let { { it.toggle(post) } },
+                    selected = selection != null && post in selection,
+                )
             }
         }
     }
@@ -177,6 +197,7 @@ private fun GroupHeader(group: PostGroup) {
 /**
  * The Post's Thumbnail as a square, or a placeholder card naming its owner until there is one. A reel is marked in
  * the top corner, a Post with a Post Note in the bottom one; [overlay] is written across the bottom instead.
+ * A [selected] Post is tinted and checked.
  */
 @Composable
 internal fun PostCard(
@@ -185,6 +206,8 @@ internal fun PostCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     overlay: String? = null,
+    onLongClick: (() -> Unit)? = null,
+    selected: Boolean = false,
 ) {
     // The owner is only known once Sync has seen the Post.
     val label = post.ownerName.ifBlank { post.ownerUsername }.ifBlank { post.title }.ifBlank { post.shortcode }
@@ -192,7 +215,7 @@ internal fun PostCard(
         modifier
             .aspectRatio(1f)
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .clickable(onClick = onClick),
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
         if (thumbnail != null) {
             AsyncImage(thumbnail, contentDescription = label, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -242,6 +265,15 @@ internal fun PostCard(
                     .padding(horizontal = 4.dp, vertical = 2.dp),
             )
         }
+        if (selected) {
+            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)))
+            Icon(
+                painterResource(R.drawable.ic_check_circle),
+                contentDescription = stringResource(R.string.selected),
+                Modifier.align(Alignment.TopStart).padding(4.dp).size(20.dp).background(Color.White, CircleShape),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
     }
 }
 
@@ -253,6 +285,7 @@ fun AllScreen(
     snackbar: SnackbarHostState,
     onBack: () -> Unit,
     onOpen: (Post) -> Unit,
+    bulk: BulkActions,
 ) {
     PostGridScreen(
         title = { Text(stringResource(R.string.all_posts)) },
@@ -262,6 +295,7 @@ fun AllScreen(
         snackbar = snackbar,
         onBack = onBack,
         onOpen = onOpen,
+        bulk = bulk,
     )
 }
 
@@ -279,6 +313,7 @@ private fun AllScreenPreview() {
             snackbar = remember { SnackbarHostState() },
             onBack = {},
             onOpen = {},
+            bulk = BulkActions(),
         )
     }
 }
@@ -287,6 +322,27 @@ private fun AllScreenPreview() {
 @Composable
 private fun EmptyAllScreenPreview() {
     InstaSavedTheme {
-        AllScreen(emptyList(), thumbnailOf = { null }, remember { SnackbarHostState() }, onBack = {}, onOpen = {})
+        AllScreen(
+            emptyList(),
+            thumbnailOf = { null },
+            remember { SnackbarHostState() },
+            onBack = {},
+            onOpen = {},
+            bulk = BulkActions(),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun SelectedPostCardPreview() {
+    InstaSavedTheme {
+        PostCard(
+            Post(id = 1, shortcode = "P1", url = "", addedAt = 0, title = "Carbonara"),
+            thumbnail = null,
+            onClick = {},
+            modifier = Modifier.size(120.dp),
+            selected = true,
+        )
     }
 }

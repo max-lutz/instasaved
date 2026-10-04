@@ -1,7 +1,8 @@
 package com.maxlutz.instasaved.grid
 
 import android.text.format.DateUtils
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -50,6 +52,7 @@ import java.io.File
 
 /**
  * To sort as an inbox: the Posts with no Collection, newest first, each with a File button to put it in one.
+ * A long-press on a Post selects several, to act on them together.
  *
  * @param collections every Collection, alphabetically, to file a Post in.
  * @param now the current time in epoch milliseconds, to say how long ago each Post was added.
@@ -66,22 +69,28 @@ fun ToSortScreen(
     onOpen: (Post) -> Unit,
     onFile: (Post, Long) -> Unit,
     onNewCollection: (Post, Collection) -> Unit,
+    bulk: BulkActions,
     bottomBar: @Composable () -> Unit,
 ) {
     var creatingForId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val selection = rememberSelection(posts)
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.to_sort), style = ScreenTitle) },
-                actions = {
-                    Text(
-                        pluralStringResource(R.plurals.post_count, posts.size, posts.size),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(end = 14.dp),
-                    )
-                },
-            )
+            if (selection.active) {
+                SelectionTopBar(selection, bulk)
+            } else {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.to_sort), style = ScreenTitle) },
+                    actions = {
+                        Text(
+                            pluralStringResource(R.plurals.post_count, posts.size, posts.size),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(end = 14.dp),
+                        )
+                    },
+                )
+            }
         },
         bottomBar = bottomBar,
         snackbarHost = { SnackbarHost(snackbar) },
@@ -97,7 +106,10 @@ fun ToSortScreen(
                         thumbnail = thumbnailOf(post),
                         collections = collections,
                         now = now,
-                        onOpen = { onOpen(post) },
+                        selecting = selection.active,
+                        selected = post in selection,
+                        onClick = { if (selection.active) selection.toggle(post) else onOpen(post) },
+                        onLongClick = { selection.toggle(post) },
                         onFile = { onFile(post, it) },
                         onNew = { creatingForId = post.id },
                     )
@@ -120,14 +132,20 @@ fun ToSortScreen(
     }
 }
 
-/** A Post waiting in To sort: its Thumbnail, its Title, who posted it and when it was added, and the File button. */
+/**
+ * A Post waiting in To sort: its Thumbnail, its Title, who posted it and when it was added, and the File button,
+ * which leaves while the screen is [selecting].
+ */
 @Composable
 private fun ToSortRow(
     post: Post,
     thumbnail: File?,
     collections: List<Collection>,
     now: Long,
-    onOpen: () -> Unit,
+    selecting: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onFile: (Long) -> Unit,
     onNew: () -> Unit,
 ) {
@@ -136,11 +154,22 @@ private fun ToSortRow(
     val added = DateUtils.getRelativeTimeSpanString(post.addedAt, now, DateUtils.DAY_IN_MILLIS).toString()
 
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(horizontal = 14.dp, vertical = 10.dp),
+        Modifier
+            .fillMaxWidth()
+            .background(if (selected) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        PostCard(post, thumbnail, onClick = onOpen, modifier = Modifier.size(60.dp).clip(RoundedCornerShape(8.dp)))
+        PostCard(
+            post,
+            thumbnail,
+            onClick = onClick,
+            modifier = Modifier.size(60.dp).clip(RoundedCornerShape(8.dp)),
+            onLongClick = onLongClick,
+            selected = selected,
+        )
         Column(Modifier.weight(1f)) {
             Text(
                 post.title.ifBlank { post.shortcode },
@@ -156,7 +185,7 @@ private fun ToSortRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Box {
+        if (!selecting) Box {
             SoftButton(stringResource(R.string.file) + " ▾", onClick = { filing = true })
             CollectionMenu(
                 expanded = filing,
@@ -186,6 +215,7 @@ private fun ToSortScreenPreview() {
             onOpen = {},
             onFile = { _, _ -> },
             onNewCollection = { _, _ -> },
+            bulk = BulkActions(),
             bottomBar = {},
         )
     }
@@ -204,6 +234,7 @@ private fun EmptyToSortScreenPreview() {
             onOpen = {},
             onFile = { _, _ -> },
             onNewCollection = { _, _ -> },
+            bulk = BulkActions(),
             bottomBar = {},
         )
     }

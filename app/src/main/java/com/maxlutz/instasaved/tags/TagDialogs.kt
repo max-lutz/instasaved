@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -40,6 +43,7 @@ import com.maxlutz.instasaved.collections.ColorDot
 import com.maxlutz.instasaved.collections.ColorPicker
 import com.maxlutz.instasaved.data.MAX_TAGS_PER_POST
 import com.maxlutz.instasaved.data.PALETTE
+import com.maxlutz.instasaved.data.PostTag
 import com.maxlutz.instasaved.data.Tag
 import com.maxlutz.instasaved.data.nextColor
 import com.maxlutz.instasaved.data.sameName
@@ -141,24 +145,80 @@ fun TagPickerDialog(
     inCollection: Set<Long> = emptySet(),
     message: String? = null,
 ) {
+    val onPostIds = onPost.map { it.id }.toSet()
+    TagPickerDialog(
+        title = title,
+        tags = tags,
+        // One Post, whatever its id.
+        tagging = Tagging(listOf(0L), onPostIds.map { PostTag(0L, it) }),
+        onTap = { if (it.id in onPostIds) onRemove(it) else onAdd(it) },
+        onNew = onNew,
+        onDismiss = onDismiss,
+        inCollection = inCollection,
+        message = message,
+    )
+}
+
+/**
+ * Picks the Tags of the Posts of [tagging] together: a Tag is selected when all of them carry it, half-selected
+ * and saying how many when only some do, and a tap, handed to [onTap], puts it on all or takes it off all, see
+ * [Tagging.tap].
+ * A Tag that fits on none of them can't be picked.
+ *
+ * @param inCollection the ids of the Tags used in the Collection the Posts are all in, see [tagIdsInCollectionOf].
+ */
+@Composable
+fun TagPickerDialog(
+    title: String,
+    tags: List<Tag>,
+    tagging: Tagging,
+    onTap: (Tag) -> Unit,
+    onNew: (Tag) -> Unit,
+    onDismiss: () -> Unit,
+    inCollection: Set<Long> = emptySet(),
+    message: String? = null,
+) {
     var query by rememberSaveable { mutableStateOf("") }
     // The name the New Tag dialog opens with, while a Tag is being created.
     var creating by rememberSaveable { mutableStateOf<String?>(null) }
-    val onPostIds = onPost.map { it.id }.toSet()
-    val full = onPostIds.size >= MAX_TAGS_PER_POST
+    val full = tagging.full
     val choices = tagChoices(tags, query, inCollection)
+    val onSome = stringResource(R.string.tag_on_some_posts)
 
     @Composable
     fun Chips(tags: List<Tag>) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             tags.forEach { tag ->
-                val picked = tag.id in onPostIds
+                val carried = tagging.carried(tag.id)
                 FilterChip(
-                    selected = picked,
-                    onClick = { if (picked) onRemove(tag) else onAdd(tag) },
-                    enabled = picked || !full,
+                    selected = carried == Carried.All,
+                    onClick = { onTap(tag) },
+                    enabled = tagging.canTap(tag.id),
                     label = { Text(tag.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     leadingIcon = { ColorDot(tag.color) },
+                    trailingIcon = if (carried == Carried.Some) {
+                        {
+                            Text(
+                                stringResource(R.string.tag_on_count, tagging.countCarrying(tag.id), tagging.postCount),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                    modifier = if (carried == Carried.Some) {
+                        Modifier.semantics { stateDescription = onSome }
+                    } else {
+                        Modifier
+                    },
+                    // Half-selected: the fill of a selected chip, inside the outline of an unselected one.
+                    colors = if (carried == Carried.Some) {
+                        FilterChipDefaults.filterChipColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        )
+                    } else {
+                        FilterChipDefaults.filterChipColors()
+                    },
                 )
             }
         }
@@ -234,6 +294,22 @@ private fun TagPickerDialogPreview() {
             inCollection = setOf(2),
             onAdd = {},
             onRemove = {},
+            onNew = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun TagPickerDialogForSeveralPostsPreview() {
+    val tags = listOf(Tag(1, "Quick", PALETTE[1]), Tag(2, "Vegan", PALETTE[3]), Tag(3, "Weekend", PALETTE[5]))
+    InstaSavedTheme {
+        TagPickerDialog(
+            title = "Tags of 2 Posts",
+            tags = tags,
+            tagging = Tagging(listOf(1, 2), listOf(PostTag(1, 1), PostTag(2, 1), PostTag(1, 2))),
+            onTap = {},
             onNew = {},
             onDismiss = {},
         )

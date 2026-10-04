@@ -63,6 +63,12 @@ abstract class RecentlyDeletedDao {
         forgetUnusedDeletions()
     }
 
+    /** [restore] for several Posts, as one change. */
+    @Transaction
+    open suspend fun restore(ids: List<Long>) {
+        ids.forEach { restore(it) }
+    }
+
     @Query("SELECT shortcode FROM posts WHERE deletedAt <= :deletedUpTo")
     protected abstract suspend fun shortcodesDeleted(deletedUpTo: Long): List<String>
 

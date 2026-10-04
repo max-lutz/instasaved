@@ -209,6 +209,33 @@ class TagsTest {
     }
 
     @Test
+    fun putsATagOnSomePostsAndTakesItOffOthersAtOnce() = runTest {
+        val vegan = create("Vegan")
+        val a = addPost("A")
+        val b = addPost("B")
+        val c = addPost("C")
+        tags.addToPost(c, vegan, at = 1L)
+
+        tags.setOnPosts(vegan, addTo = listOf(a, b), removeFrom = listOf(c), at = 5L)
+
+        assertEquals(listOf(listOf("Vegan"), listOf("Vegan"), emptyList()), listOf(tagsOf(a), tagsOf(b), tagsOf(c)))
+        assertEquals(listOf(5L, 5L, 5L), listOf("A", "B", "C").map { posts.get(it)?.modifiedAt })
+    }
+
+    @Test
+    fun aTagPutOnSeveralPostsStillSkipsAFullOne() = runTest {
+        val a = addPost("A")
+        val full = addPost("B")
+        listOf("A", "B", "C", "D").forEach { tags.addToPost(full, create(it), at = 1L) }
+        val vegan = create("Vegan")
+
+        tags.setOnPosts(vegan, addTo = listOf(a, full), removeFrom = emptyList(), at = 5L)
+
+        assertEquals(listOf("Vegan"), tagsOf(a))
+        assertEquals(listOf("A", "B", "C", "D"), tagsOf(full))
+    }
+
+    @Test
     fun listsWhichTagsAreOnWhichPosts() = runTest {
         val vegan = create("Vegan")
         val quick = create("Quick")

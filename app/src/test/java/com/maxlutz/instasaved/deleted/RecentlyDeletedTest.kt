@@ -172,6 +172,23 @@ class RecentlyDeletedTest {
         assertEquals(listOf("A"), inCollection(recipes))
     }
 
+    @Test
+    fun severalPostsAreDeletedAndRestoredTogether() = runTest {
+        val recipes = create("Recipes")
+        val a = addPost("A", recipes)
+        val b = addPost("B")
+        addPost("C")
+
+        posts.delete(listOf(a, b), at = 5)
+        val deleted = listed().toSet()
+        dao.restore(listOf(a, b))
+
+        assertEquals(setOf("A", "B"), deleted)
+        assertEquals(emptyList<String>(), listed())
+        assertEquals(listOf("A"), inCollection(recipes))
+        assertEquals(setOf("B", "C"), toSort().toSet())
+    }
+
     // Empty now
 
     @Test
