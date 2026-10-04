@@ -50,6 +50,7 @@ import com.maxlutz.instasaved.share.PostLink
 import com.maxlutz.instasaved.share.ShareIn
 import com.maxlutz.instasaved.tags.TagPickerDialog
 import com.maxlutz.instasaved.tags.TagsScreen
+import com.maxlutz.instasaved.tags.tagIdsInCollectionOf
 import com.maxlutz.instasaved.thumbnails.ThumbnailWorker
 import com.maxlutz.instasaved.ui.BottomBar
 import com.maxlutz.instasaved.ui.InstaSavedTheme
@@ -293,7 +294,7 @@ class MainActivity : ComponentActivity() {
                     else -> {
                         BackHandler { openPostId = null }
                         val post by remember(id) { database.postDao().observe(id) }.collectAsState(initial = null)
-                        val postTags by remember(id) { database.tagDao().observeOnPost(id) }
+                        val tagsOnPost by remember(id) { database.tagDao().observeOnPost(id) }
                             .collectAsState(initial = emptyList())
                         post?.let {
                             PostDetailScreen(
@@ -306,7 +307,10 @@ class MainActivity : ComponentActivity() {
                                     createCollection(collection, onNameTaken = showNameTaken, thenAssign = it.id)
                                 },
                                 tags = allTags,
-                                postTags = postTags,
+                                postTags = tagsOnPost,
+                                collectionTagIds = remember(it.collectionId, all, postTags) {
+                                    tagIdsInCollectionOf(it, all, postTags)
+                                },
                                 onAddTag = { tag -> addTag(it.id, tag) },
                                 onRemoveTag = { tag -> removeTag(it.id, tag) },
                                 onNewTag = { tag -> createTag(tag, onNameTaken = showTagNameTaken, thenAddTo = it.id) },

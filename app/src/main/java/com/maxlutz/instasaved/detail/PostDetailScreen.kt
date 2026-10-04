@@ -65,6 +65,7 @@ import com.maxlutz.instasaved.ui.SoftButton
  * @param onNewCollection a Collection created from the picker, to create and put the Post in.
  * @param tags every Tag, alphabetically, to pick the Post's from.
  * @param postTags the Tags the Post carries, alphabetically.
+ * @param collectionTagIds the ids of the Tags used in the Post's Collection, which the Tag picker shows first.
  * @param onNewTag a Tag created from the picker, to create and put on the Post.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -83,6 +84,7 @@ fun PostDetailScreen(
     onNewTag: (Tag) -> Unit,
     onOpenInInstagram: () -> Unit,
     onDelete: () -> Unit,
+    collectionTagIds: Set<Long> = emptySet(),
     showEmbed: Boolean = true,
 ) {
     // Edits live here and are only written out: the stored Post lags behind while saves are in flight.
@@ -159,7 +161,7 @@ fun PostDetailScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                PostTags(tags, postTags, onAddTag, onRemoveTag, onNewTag)
+                PostTags(tags, postTags, collectionTagIds, onAddTag, onRemoveTag, onNewTag)
                 Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
                         Text(
@@ -228,11 +230,12 @@ private fun CollectionPicker(
     }
 }
 
-/** The Post's Tags, then a chip opening the Tag picker. */
+/** The Post's Tags, each with a × removing it at once, then a chip opening the Tag picker. */
 @Composable
 private fun PostTags(
     tags: List<Tag>,
     postTags: List<Tag>,
+    collectionTagIds: Set<Long>,
     onAdd: (Tag) -> Unit,
     onRemove: (Tag) -> Unit,
     onNew: (Tag) -> Unit,
@@ -243,7 +246,7 @@ private fun PostTags(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         itemVerticalAlignment = Alignment.CenterVertically,
     ) {
-        postTags.forEach { TagChip(it) }
+        postTags.forEach { TagChip(it, onRemove = { onRemove(it) }) }
         Pill(onClick = { picking = true }, dashed = true) {
             Text(stringResource(R.string.add_tag), style = MaterialTheme.typography.labelLarge)
         }
@@ -254,6 +257,7 @@ private fun PostTags(
             title = stringResource(R.string.tags),
             tags = tags,
             onPost = postTags,
+            inCollection = collectionTagIds,
             onAdd = onAdd,
             onRemove = onRemove,
             onNew = onNew,

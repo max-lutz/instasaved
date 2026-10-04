@@ -1,16 +1,24 @@
 package com.maxlutz.instasaved.tags
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -19,8 +27,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -34,18 +44,31 @@ import com.maxlutz.instasaved.data.Tag
 import com.maxlutz.instasaved.data.nextColor
 import com.maxlutz.instasaved.data.sameName
 import com.maxlutz.instasaved.ui.InstaSavedTheme
+import com.maxlutz.instasaved.ui.SearchField
 
-/** A Tag as a pill in its color. */
+/** A Tag as a pill in its color, ending with a × that calls [onRemove] when there is one. */
 @Composable
-fun TagChip(tag: Tag, modifier: Modifier = Modifier) {
-    Surface(color = Color(tag.color), contentColor = Color.White, shape = RoundedCornerShape(50), modifier = modifier) {
+fun TagChip(tag: Tag, modifier: Modifier = Modifier, onRemove: (() -> Unit)? = null) {
+    // Not a Surface: its clip would cut the ×'s touch target, which reaches past the pill to the full size.
+    Row(modifier.background(Color(tag.color), RoundedCornerShape(50)), verticalAlignment = Alignment.CenterVertically) {
         Text(
             tag.name,
+            color = Color.White,
             style = MaterialTheme.typography.labelLarge,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .padding(start = 12.dp, end = if (onRemove == null) 12.dp else 4.dp, top = 6.dp, bottom = 6.dp),
         )
+        if (onRemove != null) {
+            Icon(
+                painterResource(R.drawable.ic_close),
+                stringResource(R.string.remove_tag, tag.name),
+                Modifier.padding(end = 8.dp).clickable(onClick = onRemove).size(16.dp),
+                tint = Color.White,
+            )
+        }
     }
 }
 
@@ -98,10 +121,12 @@ fun TagEditorDialog(
 
 /**
  * Picks a Post's Tags among every Tag: each tap adds or removes one at once. Once the Post has [MAX_TAGS_PER_POST],
- * the others can't be picked. "New Tag…" creates one and puts it on the Post, handed to [onNew].
+ * the others can't be picked. Typing narrows the Tags; the ones used in the Post's Collection come first.
+ * "New Tag…" creates one and puts it on the Post, handed to [onNew]; so does a search that matches no Tag.
  *
  * @param tags every Tag, alphabetically.
  * @param onPost the Tags the Post carries.
+ * @param inCollection the ids of the Tags used in the Post's Collection, see [tagIdsInCollectionOf].
  * @param message shown above the Tags, e.g. what just happened to the Post.
  */
 @Composable
@@ -113,34 +138,58 @@ fun TagPickerDialog(
     onRemove: (Tag) -> Unit,
     onNew: (Tag) -> Unit,
     onDismiss: () -> Unit,
+    inCollection: Set<Long> = emptySet(),
     message: String? = null,
 ) {
-    var creating by rememberSaveable { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+    // The name the New Tag dialog opens with, while a Tag is being created.
+    var creating by rememberSaveable { mutableStateOf<String?>(null) }
     val onPostIds = onPost.map { it.id }.toSet()
     val full = onPostIds.size >= MAX_TAGS_PER_POST
+    val choices = tagChoices(tags, query, inCollection)
+
+    @Composable
+    fun Chips(tags: List<Tag>) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            tags.forEach { tag ->
+                val picked = tag.id in onPostIds
+                FilterChip(
+                    selected = picked,
+                    onClick = { if (picked) onRemove(tag) else onAdd(tag) },
+                    enabled = picked || !full,
+                    label = { Text(tag.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    leadingIcon = { ColorDot(tag.color) },
+                )
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        // Searching must not hide the buttons behind the keyboard.
+        modifier = Modifier.imePadding(),
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 message?.let { Text(it) }
-                if (tags.isEmpty()) {
-                    Text(
-                        stringResource(R.string.no_tags),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    tags.forEach { tag ->
-                        val picked = tag.id in onPostIds
-                        FilterChip(
-                            selected = picked,
-                            onClick = { if (picked) onRemove(tag) else onAdd(tag) },
-                            enabled = picked || !full,
-                            label = { Text(tag.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            leadingIcon = { ColorDot(tag.color) },
+                SearchField(query, { query = it }, stringResource(R.string.search_tags), Modifier.fillMaxWidth())
+                // Only the Tags scroll: the search and the limit stay in view.
+                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                    when {
+                        tags.isEmpty() && query.isBlank() -> Text(
+                            stringResource(R.string.no_tags),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        choices.isEmpty -> TextButton(onClick = { creating = query.trim() }, enabled = !full) {
+                            Text(stringResource(R.string.create_tag, query.trim()))
+                        }
+                        else -> {
+                            Chips(choices.inCollection)
+                            if (choices.inCollection.isNotEmpty() && choices.others.isNotEmpty()) {
+                                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                            }
+                            Chips(choices.others)
+                        }
                     }
                 }
                 Text(
@@ -152,22 +201,22 @@ fun TagPickerDialog(
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) } },
         dismissButton = {
-            TextButton(onClick = { creating = true }, enabled = !full) {
+            TextButton(onClick = { creating = "" }, enabled = !full) {
                 Text(stringResource(R.string.new_tag_ellipsis))
             }
         },
     )
 
-    if (creating) {
+    creating?.let { name ->
         TagEditorDialog(
             title = stringResource(R.string.new_tag),
-            initial = Tag(name = "", color = nextColor(tags.map { it.color })),
+            initial = Tag(name = name, color = nextColor(tags.map { it.color })),
             otherNames = tags.map { it.name },
             onSave = {
-                creating = false
+                creating = null
                 onNew(it)
             },
-            onDismiss = { creating = false },
+            onDismiss = { creating = null },
         )
     }
 }
@@ -182,6 +231,7 @@ private fun TagPickerDialogPreview() {
             message = "Tag it now?",
             tags = tags,
             onPost = tags.take(1),
+            inCollection = setOf(2),
             onAdd = {},
             onRemove = {},
             onNew = {},
