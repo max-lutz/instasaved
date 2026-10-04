@@ -40,3 +40,15 @@ data class CollectionDeletion(
     val collectionColor: Int,
     val collectionNote: String,
 )
+
+/**
+ * A move of all the Posts of a Collection to another, as [CollectionDao.undoMoveAllPosts] needs it.
+ *
+ * @property posts the Posts as they were before the move. When the move deleted their Collection, its Recently
+ *   deleted Posts are among them: they lost it too.
+ * @property deleted the Collection the move deleted, if it did.
+ */
+data class AllPostsMove(val posts: List<Post>, val deleted: Collection?) {
+    /** How many Posts changed Collection. */
+    val movedCount get() = posts.count { it.deletedAt == null }
+}

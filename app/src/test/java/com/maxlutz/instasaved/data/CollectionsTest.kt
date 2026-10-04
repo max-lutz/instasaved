@@ -228,6 +228,143 @@ class CollectionsTest {
         assertEquals(listOf("A"), toSort())
     }
 
+    // Moving all the Posts of a Collection
+
+    @Test
+    fun movingAllPostsLeavesTheCollectionInPlaceEmpty() = runTest {
+        val recipes = create("Recipes", PALETTE[4], "Weeknight dinners")
+        val travel = create("Travel")
+        posts.setCollection(addPost("A", addedAt = 1L), recipes, at = 2L)
+        posts.setCollection(addPost("B", addedAt = 2L), recipes, at = 2L)
+        posts.setCollection(addPost("C", addedAt = 3L), travel, at = 2L)
+        addPost("D")
+
+        val move = collections.moveAllPosts(recipes, travel, at = 7L, deleteFrom = false)
+
+        assertEquals(2, move?.movedCount)
+        assertEquals(listOf("C", "B", "A"), inCollection(travel))
+        assertEquals(emptyList<String>(), inCollection(recipes))
+        assertEquals(listOf("D"), toSort())
+        assertEquals(Collection(recipes, "Recipes", PALETTE[4], "Weeknight dinners"), collections.get(recipes))
+    }
+
+    @Test
+    fun movingAllPostsMarksThemModifiedLikeMovingOne() = runTest {
+        val recipes = create("Recipes")
+        val travel = create("Travel")
+        posts.setCollection(addPost("A"), recipes, at = 2L)
+        posts.setCollection(addPost("B"), travel, at = 2L)
+
+        collections.moveAllPosts(recipes, travel, at = 7L, deleteFrom = false)
+
+        assertEquals(listOf(7L, 2L), listOf("A", "B").map { posts.get(it)?.modifiedAt })
+    }
+
+    @Test
+    fun movingAllPostsLeavesRecentlyDeletedOnesWhereTheyWere() = runTest {
+        val recipes = create("Recipes")
+        val travel = create("Travel")
+        val a = addPost("A")
+        posts.setCollection(a, recipes, at = 2L)
+        posts.delete(a, at = 5L)
+
+        val move = collections.moveAllPosts(recipes, travel, at = 7L, deleteFrom = false)
+
+        assertEquals(0, move?.movedCount)
+        assertEquals(recipes, posts.get("A")?.collectionId)
+        assertEquals(2L, posts.get("A")?.modifiedAt)
+    }
+
+    @Test
+    fun movingAllPostsCanDeleteTheEmptiedCollection() = runTest {
+        val recipes = create("Recipes")
+        val travel = create("Travel")
+        posts.setCollection(addPost("A"), recipes, at = 2L)
+
+        collections.moveAllPosts(recipes, travel, at = 7L, deleteFrom = true)
+
+        assertEquals(listOf("Travel"), names())
+        assertEquals(listOf("A"), inCollection(travel))
+        assertEquals(emptyList<String>(), toSort())
+    }
+
+    @Test
+    fun movingAllPostsToTheCollectionItselfOrToAMissingOneChangesNothing() = runTest {
+        val recipes = create("Recipes")
+        posts.setCollection(addPost("A"), recipes, at = 2L)
+
+        assertNull(collections.moveAllPosts(recipes, recipes, at = 7L, deleteFrom = true))
+        assertNull(collections.moveAllPosts(recipes, recipes + 1, at = 7L, deleteFrom = true))
+        assertNull(collections.moveAllPosts(recipes + 1, recipes, at = 7L, deleteFrom = false))
+
+        assertEquals(listOf("Recipes"), names())
+        assertEquals(listOf("A"), inCollection(recipes))
+        assertEquals(2L, posts.get("A")?.modifiedAt)
+    }
+
+    @Test
+    fun undoingAMoveOfAllPostsPutsThemBackAsTheyWere() = runTest {
+        val recipes = create("Recipes")
+        val travel = create("Travel")
+        posts.setCollection(addPost("A"), recipes, at = 2L)
+        posts.setCollection(addPost("B"), recipes, at = 3L)
+        posts.setCollection(addPost("C"), travel, at = 4L)
+        val before = listOf("A", "B", "C").map { posts.get(it) }
+
+        val move = checkNotNull(collections.moveAllPosts(recipes, travel, at = 7L, deleteFrom = false))
+        collections.undoMoveAllPosts(move)
+
+        assertEquals(before, listOf("A", "B", "C").map { posts.get(it) })
+    }
+
+    @Test
+    fun undoingAMoveThatDeletedTheCollectionBringsItBackWithItsNoteAndColor() = runTest {
+        val recipes = create("Recipes", PALETTE[4], "Weeknight dinners")
+        val travel = create("Travel")
+        posts.setCollection(addPost("A"), recipes, at = 2L)
+        posts.setCollection(addPost("B"), travel, at = 3L)
+        val before = listOf("A", "B").map { posts.get(it) }
+
+        val move = checkNotNull(collections.moveAllPosts(recipes, travel, at = 7L, deleteFrom = true))
+        collections.undoMoveAllPosts(move)
+
+        assertEquals(Collection(recipes, "Recipes", PALETTE[4], "Weeknight dinners"), collections.get(recipes))
+        assertEquals(before, listOf("A", "B").map { posts.get(it) })
+    }
+
+    @Test
+    fun undoingAMoveThatDeletedTheCollectionPutsItsRecentlyDeletedPostsBackInItToo() = runTest {
+        val recipes = create("Recipes")
+        val travel = create("Travel")
+        val a = addPost("A")
+        posts.setCollection(a, recipes, at = 2L)
+        posts.delete(a, at = 5L)
+        posts.setCollection(addPost("B"), recipes, at = 3L)
+        val before = posts.get("A")
+
+        val move = checkNotNull(collections.moveAllPosts(recipes, travel, at = 7L, deleteFrom = true))
+        assertEquals(1, move.movedCount)
+        assertNull(posts.get("A")?.collectionId)
+        collections.undoMoveAllPosts(move)
+
+        assertEquals(before, posts.get("A"))
+    }
+
+    @Test
+    fun undoingAMoveThatDeletedTheCollectionJoinsTheOneThatTookItsNameMeanwhile() = runTest {
+        val recipes = create("Recipes")
+        val travel = create("Travel")
+        posts.setCollection(addPost("A"), recipes, at = 2L)
+
+        val move = checkNotNull(collections.moveAllPosts(recipes, travel, at = 7L, deleteFrom = true))
+        val again = create("recipes", PALETTE[2])
+        collections.undoMoveAllPosts(move)
+
+        assertEquals(listOf("recipes", "Travel"), names())
+        assertEquals(listOf("A"), inCollection(again))
+        assertEquals(2L, posts.get("A")?.modifiedAt)
+    }
+
     // Deleting
 
     @Test

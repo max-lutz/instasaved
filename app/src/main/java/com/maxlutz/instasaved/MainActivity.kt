@@ -301,7 +301,7 @@ class MainActivity : ComponentActivity() {
                                     postTags = postTags,
                                     groupByTag = groupCollectionsByTag,
                                     onGroupByTagChange = { groupCollectionsByTag = it },
-                                    otherNames = collections.map { c -> c.collection.name } - it.name,
+                                    others = collections.map { c -> c.collection } - it,
                                     snackbar = snackbar,
                                     onBack = { view = View.Home },
                                     onOpen = openPost,
@@ -319,6 +319,11 @@ class MainActivity : ComponentActivity() {
                                         val at = System.currentTimeMillis()
                                         lifecycleScope.launch { database.collectionDao().deleteWithPosts(it.id, at) }
                                     },
+                                    onMoveAll = { to, deleteThis ->
+                                        if (deleteThis) view = View.Home
+                                        moveAll(it, to, deleteThis, snackbar)
+                                    },
+                                    onNoPostsToMove = { showNoPosts(it, snackbar) },
                                     bulk = bulk,
                                 )
                             }
@@ -569,6 +574,25 @@ class MainActivity : ComponentActivity() {
     private suspend fun offerUndoMove(moved: List<Post>, name: String, snackbar: SnackbarHostState) {
         val message = resources.getQuantityString(R.plurals.posts_moved, moved.size, moved.size, name)
         if (snackbar.askUndo(message)) database.postDao().undoMove(moved)
+    }
+
+    /** Moves all the Posts of [from] to [to], deleting [from] too if [deleteFrom], then offers to undo it all. */
+    private fun moveAll(from: Collection, to: Collection, deleteFrom: Boolean, snackbar: SnackbarHostState) {
+        lifecycleScope.launch {
+            val move = database.collectionDao().moveAllPosts(from.id, to.id, at = now(), deleteFrom = deleteFrom)
+                ?: return@launch
+            val moved = resources.getQuantityString(R.plurals.posts_moved, move.movedCount, move.movedCount, to.name)
+            val message = if (deleteFrom) getString(R.string.moved_and_deleted, moved, from.name) else moved
+            if (snackbar.askUndo(message)) database.collectionDao().undoMoveAllPosts(move)
+        }
+    }
+
+    /** Says the Collection has no Posts to move. */
+    private fun showNoPosts(collection: Collection, snackbar: SnackbarHostState) {
+        lifecycleScope.launch {
+            snackbar.currentSnackbarData?.dismiss()
+            snackbar.showSnackbar(getString(R.string.collection_has_no_posts, collection.name))
+        }
     }
 
     /** Moves the [posts] to Recently deleted, then offers to restore them all. */

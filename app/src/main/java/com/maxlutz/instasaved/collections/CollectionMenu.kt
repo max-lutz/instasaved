@@ -11,10 +11,11 @@ import com.maxlutz.instasaved.R
 import com.maxlutz.instasaved.data.Collection
 
 /**
- * The menu to put a Post in a Collection: every Collection, then "New Collection…".
+ * The menu to pick a Collection to put Posts in: the Collections, then "New Collection…".
  *
- * @param collections every Collection, alphabetically.
+ * @param collections the Collections to pick from, alphabetically.
  * @param onPick the picked Collection's id, or null for To sort.
+ * @param onNew null leaves "New Collection…" out.
  * @param offerToSort whether To sort is a choice too; not for a Post that is already there.
  */
 @Composable
@@ -23,7 +24,7 @@ fun CollectionMenu(
     onDismiss: () -> Unit,
     collections: List<Collection>,
     onPick: (Long?) -> Unit,
-    onNew: () -> Unit,
+    onNew: (() -> Unit)?,
     offerToSort: Boolean,
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
@@ -46,13 +47,15 @@ fun CollectionMenu(
                 },
             )
         }
-        if (offerToSort || collections.isNotEmpty()) HorizontalDivider()
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.new_collection_ellipsis)) },
-            onClick = {
-                onDismiss()
-                onNew()
-            },
-        )
+        if (onNew != null) {
+            if (offerToSort || collections.isNotEmpty()) HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.new_collection_ellipsis)) },
+                onClick = {
+                    onDismiss()
+                    onNew()
+                },
+            )
+        }
     }
 }

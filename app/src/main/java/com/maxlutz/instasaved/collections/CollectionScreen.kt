@@ -1,9 +1,14 @@
 package com.maxlutz.instasaved.collections
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -15,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -34,9 +40,13 @@ import com.maxlutz.instasaved.ui.SoftButton
 import java.io.File
 
 /**
- * A Collection's Posts, its Collection Note above them, and editing or deleting the Collection. Once any of its Posts
- * carries a Tag, a chip groups them by Tag: under each Tag the Posts carrying it, then those with none.
+ * A Collection's Posts, its Collection Note above them, and editing or deleting the Collection, or moving all its
+ * Posts to another. Once any of its Posts carries a Tag, a chip groups them by Tag: under each Tag the Posts
+ * carrying it, then those with none.
  *
+ * @param others the other Collections, alphabetically.
+ * @param onMoveAll the Collection to move all the Posts to, and whether to delete this one along the way.
+ * @param onNoPostsToMove "Move all Posts to…" was picked with no Post to move.
  * @param tags every Tag, alphabetically.
  * @param postTags which Posts carry which Tags.
  * @param bulk what selecting several Posts needs to act on them together.
@@ -50,17 +60,24 @@ fun CollectionScreen(
     postTags: List<PostTag>,
     groupByTag: Boolean,
     onGroupByTagChange: (Boolean) -> Unit,
-    otherNames: List<String>,
+    others: List<Collection>,
     snackbar: SnackbarHostState,
     onBack: () -> Unit,
     onOpen: (Post) -> Unit,
     onSave: (Collection) -> Unit,
     onDeleteKeepingPosts: () -> Unit,
     onDeleteWithPosts: () -> Unit,
+    onMoveAll: (Collection, Boolean) -> Unit,
+    onNoPostsToMove: () -> Unit,
     bulk: BulkActions,
 ) {
     var editing by rememberSaveable { mutableStateOf(false) }
     var deleting by rememberSaveable { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var pickingTarget by remember { mutableStateOf(false) }
+    var targetId by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Null once the target is deleted, which closes the dialog.
+    val target = others.find { it.id == targetId }
     val anyTagged = remember(posts, postTags) {
         val ids = posts.mapTo(HashSet()) { it.id }
         postTags.any { it.postId in ids }
@@ -82,6 +99,30 @@ fun CollectionScreen(
         actions = {
             SoftButton(stringResource(R.string.edit), onClick = { editing = true })
             SoftButton(stringResource(R.string.delete), onClick = { deleting = true }, danger = true)
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(painterResource(R.drawable.ic_more_horiz), stringResource(R.string.more_actions))
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.move_all_posts_to)) },
+                        onClick = {
+                            menuOpen = false
+                            if (posts.isEmpty()) onNoPostsToMove() else pickingTarget = true
+                        },
+                        enabled = others.isNotEmpty(),
+                    )
+                }
+                // To sort is not a target: deleting the Collection and keeping its Posts does that (ADR-0010).
+                CollectionMenu(
+                    expanded = pickingTarget,
+                    onDismiss = { pickingTarget = false },
+                    collections = others,
+                    onPick = { targetId = it },
+                    onNew = null,
+                    offerToSort = false,
+                )
+            }
         },
         header = if (collection.note.isBlank() && !anyTagged) {
             null
@@ -108,7 +149,7 @@ fun CollectionScreen(
         CollectionEditorDialog(
             title = stringResource(R.string.edit_collection),
             initial = collection,
-            otherNames = otherNames,
+            otherNames = others.map { it.name },
             onSave = {
                 editing = false
                 onSave(it)
@@ -131,6 +172,22 @@ fun CollectionScreen(
             onDismiss = { deleting = false },
         )
     }
+    if (target != null) {
+        MoveAllPostsDialog(
+            from = collection.name,
+            to = target.name,
+            postCount = posts.size,
+            onMove = {
+                targetId = null
+                onMoveAll(target, false)
+            },
+            onMoveAndDelete = {
+                targetId = null
+                onMoveAll(target, true)
+            },
+            onDismiss = { targetId = null },
+        )
+    }
 }
 
 @Preview
@@ -148,13 +205,15 @@ private fun CollectionScreenPreview() {
             postTags = listOf(PostTag(2, 1)),
             groupByTag = true,
             onGroupByTagChange = {},
-            otherNames = emptyList(),
+            others = emptyList(),
             snackbar = remember { SnackbarHostState() },
             onBack = {},
             onOpen = {},
             onSave = {},
             onDeleteKeepingPosts = {},
             onDeleteWithPosts = {},
+            onMoveAll = { _, _ -> },
+            onNoPostsToMove = {},
             bulk = BulkActions(),
         )
     }
