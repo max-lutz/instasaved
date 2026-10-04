@@ -72,7 +72,7 @@ private fun List<Post>.sorted(sort: PostSort): List<Post> = when (sort) {
 }
 
 /** Without case or accents, so that "creme" finds "Crème". */
-private fun String.folded(): String = Normalizer.normalize(this, Normalizer.Form.NFD).replace(ACCENTS, "").lowercase()
+internal fun String.folded(): String = Normalizer.normalize(this, Normalizer.Form.NFD).replace(ACCENTS, "").lowercase()
 
 private val ACCENTS = Regex("\\p{Mn}+")
 private val WHITESPACE = Regex("\\s+")
