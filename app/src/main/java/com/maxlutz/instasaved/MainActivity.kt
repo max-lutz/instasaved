@@ -206,6 +206,8 @@ class MainActivity : ComponentActivity() {
                             onOpenAll = { view = View.All },
                             onOpenCollection = { view = View.InCollection(it.id) },
                             onCreate = { createCollection(it, onNameTaken = showNameTaken) },
+                            onMoveAll = { from, to, deleteFrom -> moveAll(from, to, deleteFrom, snackbar) },
+                            onNoPostsToMove = { showNoPosts(it, snackbar) },
                             bottomBar = { bottomBar(Tab.Collections) },
                         )
                         View.ToSort -> {
