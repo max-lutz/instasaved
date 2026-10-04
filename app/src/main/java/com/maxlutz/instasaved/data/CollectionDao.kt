@@ -73,4 +73,48 @@ abstract class CollectionDao {
 
     @Query("SELECT * FROM collection_deletions WHERE id = :id")
     abstract suspend fun getDeletion(id: Long): CollectionDeletion?
+
+    @Query("SELECT * FROM posts WHERE collectionId = :id AND (deletedAt IS NULL OR :withRecentlyDeleted)")
+    protected abstract suspend fun postsIn(id: Long, withRecentlyDeleted: Boolean): List<Post>
+
+    @Query("UPDATE posts SET collectionId = :to, modifiedAt = :at WHERE collectionId = :from AND deletedAt IS NULL")
+    protected abstract suspend fun movePosts(from: Long, to: Long, at: Long)
+
+    /**
+     * Moves every Post of the Collection [from] to the Collection [to], then deletes [from] if [deleteFrom]. Its
+     * Recently deleted Posts are not moved: they stay in it, or would be restored to To sort once it is deleted
+     * (ADR-0010). Returns what [undoMoveAllPosts] needs, or null, changing nothing, if either Collection is gone
+     * or they are the same one.
+     */
+    @Transaction
+    open suspend fun moveAllPosts(from: Long, to: Long, at: Long, deleteFrom: Boolean): AllPostsMove? {
+        val collection = get(from) ?: return null
+        if (from == to || get(to) == null) return null
+        val posts = postsIn(from, withRecentlyDeleted = deleteFrom)
+        movePosts(from, to, at)
+        if (deleteFrom) deleteKeepingPosts(from)
+        return AllPostsMove(posts, deleted = collection.takeIf { deleteFrom })
+    }
+
+    // The name column compares ignoring case.
+    @Query("SELECT id FROM collections WHERE name = :name")
+    protected abstract suspend fun collectionNamed(name: String): Long?
+
+    // The subquery leaves the Post in To sort if the Collection is gone.
+    @Query(
+        "UPDATE posts SET collectionId = (SELECT id FROM collections WHERE id = :collectionId), " +
+            "modifiedAt = :modifiedAt WHERE id = :id",
+    )
+    protected abstract suspend fun putBack(id: Long, collectionId: Long, modifiedAt: Long)
+
+    /**
+     * Undoes [moveAllPosts]: its Posts are back in their Collection with their modified date. If the move deleted
+     * that Collection, it is recreated with the same name, color and note, unless a Collection has that name by
+     * now, which the Posts join instead.
+     */
+    @Transaction
+    open suspend fun undoMoveAllPosts(move: AllPostsMove) {
+        val recreated = move.deleted?.let { collectionNamed(it.name) ?: insert(it) }
+        move.posts.forEach { putBack(it.id, recreated ?: it.collectionId ?: return@forEach, it.modifiedAt) }
+    }
 }

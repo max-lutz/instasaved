@@ -174,6 +174,36 @@ fun DeleteCollectionDialog(
     )
 }
 
+/**
+ * Asks to confirm moving all the Posts of the Collection named [from] to the one named [to], and whether to delete
+ * [from], emptied, along the way.
+ */
+@Composable
+fun MoveAllPostsDialog(
+    from: String,
+    to: String,
+    postCount: Int,
+    onMove: () -> Unit,
+    onMoveAndDelete: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(pluralStringResource(R.plurals.move_all_posts_title, postCount, postCount, from, to)) },
+        confirmButton = {
+            // Long labels: stacked, as Material asks for.
+            Column(horizontalAlignment = Alignment.End) {
+                TextButton(onClick = onMove) { Text(stringResource(R.string.move)) }
+                TextButton(
+                    onClick = onMoveAndDelete,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text(stringResource(R.string.move_and_delete, from)) }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            }
+        },
+    )
+}
+
 @Preview
 @Composable
 private fun CollectionEditorDialogPreview() {
@@ -192,4 +222,12 @@ private fun CollectionEditorDialogPreview() {
 @Composable
 private fun DeleteCollectionDialogPreview() {
     InstaSavedTheme { DeleteCollectionDialog("Recipes", 3, onKeepPosts = {}, onDeletePosts = {}, onDismiss = {}) }
+}
+
+@Preview
+@Composable
+private fun MoveAllPostsDialogPreview() {
+    InstaSavedTheme {
+        MoveAllPostsDialog("🍝 Pasta", "Recipes", 3, onMove = {}, onMoveAndDelete = {}, onDismiss = {})
+    }
 }
