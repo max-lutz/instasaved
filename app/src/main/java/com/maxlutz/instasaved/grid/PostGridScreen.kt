@@ -5,7 +5,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,10 +40,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.maxlutz.instasaved.R
-import com.maxlutz.instasaved.collections.ColorDot
 import com.maxlutz.instasaved.data.Post
 import com.maxlutz.instasaved.data.PostTag
 import com.maxlutz.instasaved.data.Tag
+import com.maxlutz.instasaved.tags.TagChip
 import com.maxlutz.instasaved.ui.InstaSavedTheme
 import java.io.File
 
@@ -74,7 +74,8 @@ fun PostGridScreen(
 ) {
     val selection = rememberSelection(posts)
     val groups = remember(posts, grouping) {
-        grouping?.let { Browse(groupByTag = true).arrange(posts, it.tags, it.postTags) } ?: listOf(PostGroup(null, posts))
+        grouping?.let { Browse(groupByTag = true).arrange(posts, it.tags, it.postTags) }
+            ?: listOf(PostGroup(emptyList(), posts))
     }
     Scaffold(
         topBar = {
@@ -130,7 +131,7 @@ internal fun EmptyText(text: String) {
 }
 
 /**
- * The 3-column grid of [groups], each under the name of its Tag when [grouped].
+ * The 3-column grid of [groups], each under its combination of Tags when [grouped].
  *
  * @param selection picks Posts on a long-press, then on a tap while it is active; null only opens them.
  */
@@ -153,10 +154,10 @@ internal fun PostGrid(
         if (header != null) item(key = "header", span = { GridItemSpan(maxLineSpan) }) { header() }
         groups.forEach { group ->
             if (grouped) {
-                item(key = "tag-${group.tag?.id}", span = { GridItemSpan(maxLineSpan) }) { GroupHeader(group) }
+                val key = "tags-" + group.tags.joinToString("-") { it.id.toString() }
+                item(key = key, span = { GridItemSpan(maxLineSpan) }) { GroupHeader(group) }
             }
-            // A Post is shown once per Tag it carries.
-            items(group.posts, key = { "${group.tag?.id}-${it.id}" }) { post ->
+            items(group.posts, key = { it.id }) { post ->
                 PostCard(
                     post,
                     thumbnailOf(post),
@@ -170,22 +171,20 @@ internal fun PostGrid(
     }
 }
 
-/** The Tag a group's Posts carry, or "No Tag", with how many Posts are shown under it. */
+/**
+ * The Tags a group's Posts carry, one chip each, or "No Tag", then how many Posts are shown under it. Chips that
+ * don't fit go to the next line.
+ */
 @Composable
 private fun GroupHeader(group: PostGroup) {
-    Row(
+    FlowRow(
         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
     ) {
-        group.tag?.let { ColorDot(it.color) }
-        Text(
-            group.tag?.name ?: stringResource(R.string.no_tag),
-            style = MaterialTheme.typography.titleSmall,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
-        )
+        group.tags.forEach { TagChip(it) }
+        if (group.tags.isEmpty()) Text(stringResource(R.string.no_tag), style = MaterialTheme.typography.titleSmall)
         Text(
             group.posts.size.toString(),
             style = MaterialTheme.typography.bodySmall,

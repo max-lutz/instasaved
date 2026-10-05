@@ -18,10 +18,10 @@ enum class PostSort {
 }
 
 /**
- * Posts shown together in a view: those carrying [tag] when the view is grouped by Tag, with a null [tag] for
- * those carrying none; the whole view when it is not grouped.
+ * Posts shown together in a view: those carrying exactly [tags] (alphabetically) when the view is grouped by Tag,
+ * with no [tags] for those carrying none; the whole view when it is not grouped.
  */
-data class PostGroup(val tag: Tag?, val posts: List<Post>)
+data class PostGroup(val tags: List<Tag>, val posts: List<Post>)
 
 /**
  * How the user is looking at a view of Posts.
@@ -36,21 +36,32 @@ data class Browse(
     val tagId: Long? = null,
 ) {
     /**
-     * The [posts] carrying [tagId] and matching [query], sorted, in the groups to show them in; no group is empty. Grouped by Tag,
-     * the groups follow the order of [tags], then comes the one for Posts without a Tag, and a Post is in the
-     * group of each of its Tags.
+     * The [posts] carrying [tagId] and matching [query], sorted, in the groups to show them in; no group is empty.
+     * Grouped by Tag, a group is an exact combination of Tags and a Post is only in the group of all its Tags: the
+     * groups follow the order of [tags], Tag after Tag ("Quick", "Quick · Vegan", "Vegan"), then comes the one for
+     * Posts without a Tag.
      */
     fun arrange(posts: List<Post>, tags: List<Tag>, postTags: List<PostTag>): List<PostGroup> {
         val tagIdsOf = postTags.groupBy({ it.postId }, { it.tagId })
         val found = posts.filter { tagId == null || tagId in tagIdsOf[it.id].orEmpty() }.search(query).sorted(sort)
-        val groups = if (groupByTag) {
-            tags.map { tag -> PostGroup(tag, found.filter { tag.id in tagIdsOf[it.id].orEmpty() }) } +
-                PostGroup(null, found.filter { it.id !in tagIdsOf })
-        } else {
-            listOf(PostGroup(null, found))
-        }
-        return groups.filter { it.posts.isNotEmpty() }
+        if (found.isEmpty()) return emptyList()
+        if (!groupByTag) return listOf(PostGroup(emptyList(), found))
+        // A combination is the places of its Tags in [tags], which orders both its Tags and the groups.
+        val placeOf = tags.withIndex().associate { (place, tag) -> tag.id to place }
+        return found.groupBy { post -> tagIdsOf[post.id].orEmpty().mapNotNull { placeOf[it] }.distinct().sorted() }
+            .toList()
+            .sortedWith { (a, _), (b, _) -> compareCombinations(a, b) }
+            .map { (places, group) -> PostGroup(places.map { tags[it] }, group) }
     }
+}
+
+/** Orders two combinations of Tags by their Tags in turn, a shorter one before those it starts; none comes last. */
+private fun compareCombinations(a: List<Int>, b: List<Int>): Int {
+    if (a.isEmpty() || b.isEmpty()) return compareValues(a.isEmpty(), b.isEmpty())
+    for (i in 0 until minOf(a.size, b.size)) {
+        if (a[i] != b[i]) return a[i].compareTo(b[i])
+    }
+    return a.size.compareTo(b.size)
 }
 
 /** The Posts with every word of [query] somewhere in their Title, Description or Post Note. */

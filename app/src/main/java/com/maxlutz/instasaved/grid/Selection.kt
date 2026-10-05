@@ -62,10 +62,7 @@ class BulkActions(
     val onDelete: (List<Post>) -> Unit = {},
 )
 
-/**
- * The Posts picked in a view to act on together. A Post is picked as a whole, however many times the view shows
- * it, and only while the view shows it.
- */
+/** The Posts picked in a view to act on together. A Post is picked only while the view shows it. */
 class Selection internal constructor(
     private val shown: List<Post>,
     picked: Set<Long>,
@@ -91,7 +88,7 @@ class Selection internal constructor(
 @Composable
 internal fun rememberSelection(shown: List<Post>): Selection {
     var picked by rememberSaveable(stateSaver = IdsSaver) { mutableStateOf(emptySet()) }
-    return remember(shown, picked) { Selection(shown.distinctBy { it.id }, picked) { picked = it } }
+    return remember(shown, picked) { Selection(shown, picked) { picked = it } }
 }
 
 private val IdsSaver = Saver<Set<Long>, LongArray>(save = { it.toLongArray() }, restore = { it.toSet() })
