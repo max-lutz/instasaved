@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.SnackbarDuration
@@ -51,6 +52,12 @@ import com.maxlutz.instasaved.grid.ToSortScreen
 import com.maxlutz.instasaved.more.MoreScreen
 import com.maxlutz.instasaved.share.PostLink
 import com.maxlutz.instasaved.share.ShareIn
+import com.maxlutz.instasaved.sync.BearerHttp
+import com.maxlutz.instasaved.sync.DriveAuthorization
+import com.maxlutz.instasaved.sync.DriveRest
+import com.maxlutz.instasaved.sync.Sync
+import com.maxlutz.instasaved.sync.SyncProblem
+import com.maxlutz.instasaved.sync.SyncStatusText
 import com.maxlutz.instasaved.tags.TagChange
 import com.maxlutz.instasaved.tags.TagPickerDialog
 import com.maxlutz.instasaved.tags.Tagging
@@ -74,6 +81,8 @@ class MainActivity : ComponentActivity() {
     private val recentlyDeleted by lazy { (application as InstaSavedApplication).recentlyDeleted }
     private val backups by lazy { (application as InstaSavedApplication).backups }
     private val desktopImport by lazy { (application as InstaSavedApplication).desktopImport }
+    private val sync by lazy { (application as InstaSavedApplication).sync }
+    private val syncStatus by lazy { (application as InstaSavedApplication).syncStatus }
     private val shareIn by lazy { ShareIn(database.postDao(), database.recentlyDeletedDao()) }
 
     // Text is saved on every keystroke; the lock keeps the saves in typing order.
@@ -97,6 +106,16 @@ class MainActivity : ComponentActivity() {
 
     private val pickDesktopBackup =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(::importDesktopBackup) }
+
+    // Google's account picker and consent screen, the first time "Sync now" is tapped.
+    private val consentToDrive =
+        registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+            if (result.resultCode == RESULT_OK) {
+                syncWith(DriveAuthorization.fromConsent(this, result.data))
+            } else {
+                sync.failed(SyncProblem.AccessNotGranted)
+            }
+        }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
@@ -127,6 +146,8 @@ class MainActivity : ComponentActivity() {
                 val tags by database.tagDao().observeAll().collectAsState(initial = emptyList())
                 val postTags by database.tagDao().observePostTags().collectAsState(initial = emptyList())
                 val deleted by database.recentlyDeletedDao().observe().collectAsState(initial = emptyList())
+                val status by syncStatus.status.collectAsState()
+                val syncing by sync.isRunning.collectAsState()
                 val allTags = tags.map { it.tag }
                 val withThumbnail by thumbnailStore.shortcodes.collectAsState()
                 val thumbnailOf: (Post) -> File? = {
@@ -209,6 +230,7 @@ class MainActivity : ComponentActivity() {
                             onMoveAll = { from, to, deleteFrom -> moveAll(from, to, deleteFrom, snackbar) },
                             onNoPostsToMove = { showNoPosts(it, snackbar) },
                             bottomBar = { bottomBar(Tab.Collections) },
+                            syncStatus = { SyncStatusText(status, syncing, short = true) },
                         )
                         View.ToSort -> {
                             BackHandler { view = View.Home }
@@ -236,9 +258,12 @@ class MainActivity : ComponentActivity() {
                         View.More -> {
                             BackHandler { view = View.Home }
                             MoreScreen(
+                                syncStatus = status,
+                                syncing = syncing,
                                 recentlyDeletedCount = deleted.size,
                                 tagCount = tags.size,
                                 snackbar = snackbar,
+                                onSyncNow = ::syncNow,
                                 onOpenRecentlyDeleted = { view = View.RecentlyDeleted },
                                 onOpenTags = { view = View.Tags },
                                 onWriteBackup = {
@@ -420,6 +445,38 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** Asks Google for access to Drive, which asks the user only the first time, then syncs. */
+    private fun syncNow() {
+        lifecycleScope.launch { syncWith(DriveAuthorization.authorize(this@MainActivity)) }
+    }
+
+    private fun syncWith(authorization: DriveAuthorization.Outcome) {
+        when (authorization) {
+            is DriveAuthorization.Outcome.NeedsConsent ->
+                consentToDrive.launch(IntentSenderRequest.Builder(authorization.consent.intentSender).build())
+            is DriveAuthorization.Outcome.Failed -> sync.failed(authorization.problem)
+            is DriveAuthorization.Outcome.Granted -> lifecycleScope.launch {
+                show(sync.run(DriveRest(BearerHttp(authorization.accessToken))))
+            }
+        }
+    }
+
+    /** Says what the Sync brought. What went wrong is in the sync status already. */
+    private fun show(report: Sync.Report) {
+        val summary = report.summary
+        if (summary.isEmpty && report.problem != null) return
+        val message = if (summary.isEmpty) {
+            getString(R.string.sync_nothing_new)
+        } else {
+            listOfNotNull(
+                summary.new.takeIf { it > 0 }?.let { resources.getQuantityString(R.plurals.sync_new, it, it) },
+                summary.captionsUpdated.takeIf { it > 0 }
+                    ?.let { resources.getQuantityString(R.plurals.sync_captions_updated, it, it) },
+            ).joinToString(" · ")
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
     private fun writeBackup(to: Uri) {

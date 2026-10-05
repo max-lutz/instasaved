@@ -4,7 +4,7 @@ How an Export becomes changes to the app's Posts. Terms are defined in `CONTEXT.
 
 ## Pipeline
 
-1. **Find** the Export folders in Google Drive (read-only access, see ADR-0004) that have not been applied yet, by Drive file id.
+1. **Find** the Export folders in Google Drive (read-only access, see ADR-0004) that have not been applied yet, by Drive file id. A folder is an Export by its name (see Export file format), wherever it sits in Drive.
 
 Then, for each of them, oldest first (R7):
 
@@ -17,7 +17,9 @@ And once for the whole Sync:
 5. **Record** the sync status (time, date of the newest Export applied) and the Sync Summary, totalled over the Exports applied.
 6. **Queue** Thumbnail downloads for newly added Posts (best-effort, outside the transaction).
 
-An Export that fails (download or parse error) is not recorded as applied: the error shows in the sync status, the other Exports are still applied, and the next Sync tries it again.
+An Export that fails (download or parse error) is not recorded as applied: the error shows in the sync status, the other Exports are still applied, and the next Sync tries it again. A folder without a saved-posts JSON fails the same way, rather than counting as an Export with no posts: Meta may still be writing it.
+
+Restoring a Backup forgets which Exports were applied, so the next Sync applies them all again: those applied after the Backup was taken bring back their posts, and the rules leave everything else as it is (R2, R3, R6).
 
 ## Normalization
 
@@ -62,11 +64,11 @@ Alphabetical order makes the result independent of how Meta orders the Export. F
 
 **R6 — Idempotent.** Applying the same Export twice produces no changes the second time.
 
-**R7 — Every Export, once, oldest first.** Each Export in Drive is applied exactly once: skipping one would lose the posts saved that day. Exports are never deleted (the app has read-only access). An Export with no posts changes nothing and is not an error.
+**R7 — Every Export, once, oldest first.** Each Export in Drive is applied exactly once: skipping one would lose the posts saved that day. Oldest is by the day in the folder's name, then by when Drive got the folder. Exports are never deleted (the app has read-only access). An Export with no posts changes nothing and is not an error.
 
 ## Sync status and Summary
 
-- Status line: "Synced 2 h ago · Export from 1 Oct". Error state when the last sync failed (Drive sign-in expired, no Export found, parse error), with the reason.
+- Status line: "Synced 2 h ago · Export from 1 Oct", "Synced" being the last Sync that went through Drive's Exports. Error state when the last sync failed (Drive access not granted or refused, Drive unreachable, no Export found, an Export that could not be read), with the reason.
 - **Stale warning** when the newest Export in Drive is more than 3 days old — the Instagram schedule may have stopped.
 - **Sync Summary** (dismissable, only shown when something changed): new · captions updated.
 - No system notification.

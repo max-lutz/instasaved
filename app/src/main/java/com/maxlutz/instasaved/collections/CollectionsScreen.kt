@@ -93,6 +93,7 @@ import java.io.File
  * @param onMoveAll the Collection to move all the Posts from, the one to move them to, and whether to delete the
  *   first along the way.
  * @param onNoPostsToMove a Collection with no Post to move was dropped on another.
+ * @param syncStatus the short sync status, in the top bar.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,6 +109,7 @@ fun CollectionsScreen(
     onMoveAll: (Collection, Collection, Boolean) -> Unit,
     onNoPostsToMove: (Collection) -> Unit,
     bottomBar: @Composable () -> Unit,
+    syncStatus: @Composable () -> Unit = {},
 ) {
     var creating by rememberSaveable { mutableStateOf(false) }
     // The ids of the Collection dropped and of the one it was dropped on.
@@ -121,6 +123,7 @@ fun CollectionsScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.saved), style = ScreenTitle) },
                 actions = {
+                    Box(Modifier.padding(end = 10.dp)) { syncStatus() }
                     SoftButton(
                         stringResource(R.string.add_collection),
                         onClick = { creating = true },

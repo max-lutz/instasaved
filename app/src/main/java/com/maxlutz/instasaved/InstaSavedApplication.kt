@@ -5,9 +5,12 @@ import com.maxlutz.instasaved.backup.Backups
 import com.maxlutz.instasaved.data.AppDatabase
 import com.maxlutz.instasaved.deleted.RecentlyDeleted
 import com.maxlutz.instasaved.desktop.DesktopImport
+import com.maxlutz.instasaved.sync.Sync
+import com.maxlutz.instasaved.sync.SyncStatusStore
 import com.maxlutz.instasaved.thumbnails.InstagramThumbnails
 import com.maxlutz.instasaved.thumbnails.ThumbnailDownloader
 import com.maxlutz.instasaved.thumbnails.ThumbnailStore
+import com.maxlutz.instasaved.thumbnails.ThumbnailWorker
 import com.maxlutz.instasaved.thumbnails.UrlConnectionHttp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -22,6 +25,12 @@ class InstaSavedApplication : Application() {
     val backups: Backups by lazy { Backups(database.backupDao(), thumbnailStore) }
 
     val desktopImport: DesktopImport by lazy { DesktopImport(database.desktopImportDao()) }
+
+    val syncStatus: SyncStatusStore by lazy { SyncStatusStore(getSharedPreferences("sync", MODE_PRIVATE)) }
+
+    val sync: Sync by lazy {
+        Sync(database.syncDao(), syncStatus, queueThumbnails = { ThumbnailWorker.downloadNow(this) })
+    }
 
     val thumbnailDownloader: ThumbnailDownloader by lazy {
         val instagram = InstagramThumbnails(UrlConnectionHttp)

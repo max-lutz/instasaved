@@ -3,6 +3,7 @@ package com.maxlutz.instasaved.backup
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.maxlutz.instasaved.data.AppDatabase
+import com.maxlutz.instasaved.data.AppliedExport
 import com.maxlutz.instasaved.data.Backup
 import com.maxlutz.instasaved.data.PALETTE
 import com.maxlutz.instasaved.data.Post
@@ -145,6 +146,44 @@ class BackupsTest {
         assertEquals(listOf("A", "B"), posts.observeInCollection(recipes).first().map { it.shortcode }.sorted())
         assertTrue(b != checkNotNull(posts.get("A")).id)
         assertTrue(travel != recipes)
+    }
+
+    @Test
+    fun instagramCollectionsComeBack() = runTest {
+        posts.insert(
+            Post(
+                shortcode = "A",
+                url = "https://www.instagram.com/p/A/",
+                addedAt = 1,
+                instagramCollections = listOf("Recipes", "Dinner"),
+            ),
+        )
+        val taken = held()
+
+        restore(written())
+
+        assertEquals(taken, held())
+    }
+
+    @Test
+    fun aFileFromBeforeSyncRestoresWithNoInstagramCollections() = runTest {
+        addPost("A")
+        val file = written().replace(""","instagramCollections":[]""", "")
+
+        restore(file)
+
+        assertEquals(emptyList<String>(), posts.get("A")?.instagramCollections)
+    }
+
+    // The next Sync applies every Export again: one applied after the Backup was taken brings back its Posts.
+    @Test
+    fun restoreForgetsWhichExportsWereApplied() = runTest {
+        val file = written()
+        db.syncDao().apply(AppliedExport("E", "instagram-someone-2026-10-01-x", "2026-10-01", 1), emptyList())
+
+        restore(file)
+
+        assertEquals(emptyList<String>(), db.syncDao().appliedExportIds())
     }
 
     // Deleted Posts (ADR-0012)
