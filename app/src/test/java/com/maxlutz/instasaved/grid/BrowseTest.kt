@@ -116,16 +116,19 @@ class BrowseTest {
 
     private val quick = Tag(1, "Quick", PALETTE[0])
     private val vegan = Tag(2, "Vegan", PALETTE[1])
-    private val unused = Tag(3, "Winter", PALETTE[2])
-    private val tags = listOf(quick, vegan, unused)
+    private val winter = Tag(3, "Winter", PALETTE[2])
+    private val tags = listOf(quick, vegan, winter)
 
-    private fun List<PostGroup>.idsByTag() = map { it.tag?.name to it.posts.map { post -> post.id } }
+    /** Each group as the names of its combination of Tags, with the ids of its Posts. */
+    private fun List<PostGroup>.idsByTags() = map { it.tags.map { tag -> tag.name } to it.posts.map { post -> post.id } }
+
+    private val noTag = emptyList<String>()
 
     @Test
     fun notGroupedTheViewIsOneGroup() {
         val groups = Browse().arrange(listOf(post(1), post(2)), tags, listOf(PostTag(1, vegan.id)))
 
-        assertEquals(listOf(null to listOf(2L, 1L)), groups.idsByTag())
+        assertEquals(listOf(noTag to listOf(2L, 1L)), groups.idsByTags())
     }
 
     @Test
@@ -135,16 +138,63 @@ class BrowseTest {
 
         val groups = Browse(groupByTag = true).arrange(posts, tags, postTags)
 
-        assertEquals(listOf("Quick" to listOf(3L), "Vegan" to listOf(1L), null to listOf(2L)), groups.idsByTag())
+        assertEquals(
+            listOf(listOf("Quick") to listOf(3L), listOf("Vegan") to listOf(1L), noTag to listOf(2L)),
+            groups.idsByTags(),
+        )
     }
 
     @Test
-    fun aPostIsInTheGroupOfEachOfItsTags() {
-        val postTags = listOf(PostTag(1, vegan.id), PostTag(1, quick.id))
+    fun aPostIsOnlyInTheGroupOfItsExactCombinationOfTags() {
+        val posts = listOf(post(1), post(2), post(3), post(4))
+        val postTags = listOf(PostTag(1, vegan.id), PostTag(1, quick.id), PostTag(2, quick.id), PostTag(3, vegan.id))
 
-        val groups = Browse(groupByTag = true).arrange(listOf(post(1)), tags, postTags)
+        val groups = Browse(groupByTag = true).arrange(posts, tags, postTags)
 
-        assertEquals(listOf("Quick" to listOf(1L), "Vegan" to listOf(1L)), groups.idsByTag())
+        assertEquals(
+            listOf(
+                listOf("Quick") to listOf(2L),
+                listOf("Quick", "Vegan") to listOf(1L),
+                listOf("Vegan") to listOf(3L),
+                noTag to listOf(4L),
+            ),
+            groups.idsByTags(),
+        )
+    }
+
+    @Test
+    fun combinationsAreOrderedByTheirTagNamesInTurn() {
+        val posts = listOf(post(1), post(2), post(3), post(4), post(5))
+        val postTags = listOf(
+            PostTag(1, winter.id),
+            PostTag(2, vegan.id), PostTag(2, winter.id),
+            PostTag(3, quick.id), PostTag(3, winter.id),
+            PostTag(4, winter.id), PostTag(4, vegan.id), PostTag(4, quick.id),
+            PostTag(5, quick.id), PostTag(5, vegan.id),
+        )
+
+        val groups = Browse(groupByTag = true).arrange(posts, tags, postTags)
+
+        assertEquals(
+            listOf(
+                listOf("Quick", "Vegan"),
+                listOf("Quick", "Vegan", "Winter"),
+                listOf("Quick", "Winter"),
+                listOf("Vegan", "Winter"),
+                listOf("Winter"),
+            ),
+            groups.map { it.tags.map { tag -> tag.name } },
+        )
+    }
+
+    @Test
+    fun groupedEveryPostIsShownOnce() {
+        val posts = listOf(post(1), post(2), post(3))
+        val postTags = listOf(PostTag(1, vegan.id), PostTag(1, quick.id), PostTag(2, quick.id), PostTag(2, winter.id))
+
+        val groups = Browse(groupByTag = true).arrange(posts, tags, postTags)
+
+        assertEquals(listOf(1L, 2L, 3L), groups.flatMap { it.posts }.map { it.id }.sorted())
     }
 
     @Test
@@ -154,7 +204,7 @@ class BrowseTest {
 
         val groups = Browse(query = "ramen", sort = PostSort.Title, groupByTag = true).arrange(posts, tags, postTags)
 
-        assertEquals(listOf("Vegan" to listOf(3L, 1L), null to listOf(4L)), groups.idsByTag())
+        assertEquals(listOf(listOf("Vegan") to listOf(3L, 1L), noTag to listOf(4L)), groups.idsByTags())
     }
 
     // Filter by Tag
@@ -166,7 +216,7 @@ class BrowseTest {
 
         val groups = Browse(tagId = vegan.id).arrange(posts, tags, postTags)
 
-        assertEquals(listOf(null to listOf(3L, 1L)), groups.idsByTag())
+        assertEquals(listOf(noTag to listOf(3L, 1L)), groups.idsByTags())
     }
 
     @Test
@@ -176,7 +226,29 @@ class BrowseTest {
 
         val groups = Browse(query = "ramen", groupByTag = true, tagId = vegan.id).arrange(posts, tags, postTags)
 
-        assertEquals(listOf("Quick" to listOf(1L), "Vegan" to listOf(1L)), groups.idsByTag())
+        assertEquals(listOf(listOf("Quick", "Vegan") to listOf(1L)), groups.idsByTags())
+    }
+
+    @Test
+    fun filteredByATagTheGroupsStillNameTheWholeCombination() {
+        val posts = listOf(post(1), post(2), post(3), post(4))
+        val postTags = listOf(
+            PostTag(1, vegan.id),
+            PostTag(2, vegan.id), PostTag(2, quick.id),
+            PostTag(3, quick.id),
+            PostTag(4, winter.id), PostTag(4, vegan.id),
+        )
+
+        val groups = Browse(groupByTag = true, tagId = vegan.id).arrange(posts, tags, postTags)
+
+        assertEquals(
+            listOf(
+                listOf("Quick", "Vegan") to listOf(2L),
+                listOf("Vegan") to listOf(1L),
+                listOf("Vegan", "Winter") to listOf(4L),
+            ),
+            groups.idsByTags(),
+        )
     }
 
     @Test
