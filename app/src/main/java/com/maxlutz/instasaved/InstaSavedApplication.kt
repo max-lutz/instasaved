@@ -7,6 +7,7 @@ import com.maxlutz.instasaved.deleted.RecentlyDeleted
 import com.maxlutz.instasaved.desktop.DesktopImport
 import com.maxlutz.instasaved.thumbnails.InstagramThumbnails
 import com.maxlutz.instasaved.thumbnails.ThumbnailDownloader
+import com.maxlutz.instasaved.thumbnails.ThumbnailRuns
 import com.maxlutz.instasaved.thumbnails.ThumbnailStore
 import com.maxlutz.instasaved.thumbnails.UrlConnectionHttp
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +30,7 @@ class InstaSavedApplication : Application() {
             database.postDao(),
             thumbnailStore,
             fetch = { withContext(Dispatchers.IO) { instagram.fetch(it) } },
+            runs = ThumbnailRuns(getSharedPreferences("thumbnail-runs", MODE_PRIVATE)),
         )
     }
 }
