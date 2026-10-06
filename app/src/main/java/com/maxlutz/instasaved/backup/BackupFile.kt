@@ -6,6 +6,7 @@ import com.maxlutz.instasaved.data.CollectionDeletion
 import com.maxlutz.instasaved.data.DeletedPostTrace
 import com.maxlutz.instasaved.data.Post
 import com.maxlutz.instasaved.data.PostTag
+import com.maxlutz.instasaved.data.Section
 import com.maxlutz.instasaved.data.Tag
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -23,7 +24,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 
 /** The manual backup file's format. A file of a higher version comes from a newer app and is refused. */
-const val BACKUP_FILE_VERSION = 1
+const val BACKUP_FILE_VERSION = 2
 
 private const val APP = "instasaved"
 
@@ -37,7 +38,8 @@ class BackupFormatException(message: String, cause: Throwable? = null, val fromN
 
 /**
  * The Backup as the content of a manual backup file: one JSON object, independent of the database's schema.
- * A Post's Thumbnail download history stays out, like the Thumbnails themselves (ADR-0001).
+ * A Post's Thumbnail download history stays out, like the Thumbnails themselves (ADR-0001), and so does whether a
+ * Section is collapsed.
  *
  * @param createdAt when the Backup is taken, in epoch milliseconds.
  */
@@ -47,6 +49,16 @@ fun Backup.toJson(createdAt: Long): String {
         put("app", APP)
         put("version", BACKUP_FILE_VERSION)
         put("createdAt", createdAt)
+        putJsonArray("sections") {
+            sections.forEach {
+                add(
+                    buildJsonObject {
+                        put("id", it.id)
+                        put("name", it.name)
+                    },
+                )
+            }
+        }
         putJsonArray("collections") {
             collections.forEach {
                 add(
@@ -55,6 +67,7 @@ fun Backup.toJson(createdAt: Long): String {
                         put("name", it.name)
                         put("color", it.color)
                         put("note", it.note)
+                        it.sectionId?.let { id -> put("sectionId", id) }
                     },
                 )
             }
@@ -103,6 +116,7 @@ fun Backup.toJson(createdAt: Long): String {
                         put("collectionName", it.collectionName)
                         put("collectionColor", it.collectionColor)
                         put("collectionNote", it.collectionNote)
+                        it.collectionSectionId?.let { id -> put("collectionSectionId", id) }
                     },
                 )
             }
@@ -113,7 +127,7 @@ fun Backup.toJson(createdAt: Long): String {
 
 /**
  * The Backup a manual backup file holds. Every Post comes back with no Thumbnail download history, so each one
- * missing its Thumbnail is tried again.
+ * missing its Thumbnail is tried again, and every Section comes back expanded. A file of version 1 has no Sections.
  *
  * @throws BackupFormatException when [json] is not a backup file of this app, or is one from a newer app.
  */
@@ -157,7 +171,13 @@ fun parseBackup(json: String): Backup {
     return Backup(
         posts = posts,
         collections = root.objects("collections").map {
-            Collection(it.long("id"), it.string("name"), it.int("color"), it.string("note"))
+            Collection(
+                it.long("id"),
+                it.string("name"),
+                it.int("color"),
+                it.string("note"),
+                it.longOrNull("sectionId"),
+            )
         },
         collectionDeletions = root.objects("collectionDeletions").map {
             CollectionDeletion(
@@ -165,12 +185,18 @@ fun parseBackup(json: String): Backup {
                 it.string("collectionName"),
                 it.int("collectionColor"),
                 it.string("collectionNote"),
+                it.longOrNull("collectionSectionId"),
             )
         },
         tags = root.objects("tags").map { Tag(it.long("id"), it.string("name"), it.int("color")) },
         postTags = postTags,
         deletedPostTraces = root.array("deletedPostTraces").map {
             DeletedPostTrace((it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content ?: malformed("deletedPostTraces"))
+        },
+        sections = if (version < 2) {
+            emptyList()
+        } else {
+            root.objects("sections").map { Section(it.long("id"), it.string("name")) }
         },
     )
 }

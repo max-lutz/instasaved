@@ -212,4 +212,35 @@ class MigrationTest {
         assertEquals(listOf("B" to 12L, "A" to 7L), after.map { it.shortcode to it.modifiedAt })
         assertEquals(listOf("new note", "note"), after.map { it.postNote })
     }
+
+    @Test
+    fun migrates8To9WithNoSectionAndEveryCollectionAsItWas() = runTest {
+        createDatabase(
+            8,
+            seed = listOf(
+                "INSERT INTO collections (id, name, color, note) VALUES (1, 'Recipes', 7, 'Weeknights')",
+                "INSERT INTO collection_deletions (id, collectionName, collectionColor, collectionNote) " +
+                    "VALUES (1, 'Travel', 3, '')",
+                "INSERT INTO posts (shortcode, url, addedAt, modifiedAt, seenInExport, title, titleHandEdited, " +
+                    "description, descriptionHandEdited, postNote, ownerUsername, ownerName, thumbnailFailures, " +
+                    "collectionId) VALUES ('A', 'https://www.instagram.com/p/A/', 7, 7, 0, '', 0, '', 0, '', '', '', 0, 1)",
+            ),
+        )
+
+        val db = openMigrated()
+        val sectionsBefore = db.sectionDao().observeAll().first()
+        val before = db.collectionDao().get(1)
+        val deletion = db.collectionDao().getDeletion(1)
+        val food = checkNotNull(db.sectionDao().create("Food"))
+        db.collectionDao().update(checkNotNull(before).copy(sectionId = food))
+        val after = db.collectionDao().get(1)
+        val inCollection = db.postDao().observeInCollection(1).first().map { it.shortcode }
+        db.close()
+
+        assertEquals(emptyList<Section>(), sectionsBefore)
+        assertEquals(Collection(1, "Recipes", 7, "Weeknights", sectionId = null), before)
+        assertNull(deletion?.collectionSectionId)
+        assertEquals(food, after?.sectionId)
+        assertEquals(listOf("A"), inCollection)
+    }
 }

@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 abstract class CollectionDao {
-    /** All Collections, alphabetically (so emoji prefixes group them), each with its Post count. */
+    /** All Collections, alphabetically, each with its Post count. */
     @Query(
         "SELECT collections.*, COUNT(posts.id) AS postCount FROM collections " +
             "LEFT JOIN posts ON posts.collectionId = collections.id AND posts.deletedAt IS NULL " +
@@ -26,22 +26,38 @@ abstract class CollectionDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     protected abstract suspend fun insert(collection: Collection): Long
 
-    /** Creates a Collection. Returns its id, or null if [name] is blank or another Collection already has it. */
-    open suspend fun create(name: String, color: Int, note: String = ""): Long? {
-        if (name.isBlank()) return null
-        return insert(Collection(name = name.trim(), color = color, note = note)).takeIf { it != -1L }
-    }
-
-    @Query("UPDATE OR IGNORE collections SET name = :name, color = :color, note = :note WHERE id = :id")
-    protected abstract suspend fun updateRow(id: Long, name: String, color: Int, note: String): Int
+    @Query("SELECT id FROM sections WHERE id = :id")
+    protected abstract suspend fun sectionStillThere(id: Long): Long?
 
     /**
-     * Saves a renamed, recolored or re-noted Collection. Returns false, changing nothing, if its name is blank or
-     * another Collection already has it.
+     * Creates a Collection, in the Section [sectionId] if that Section is still there. Returns its id, or null if
+     * [name] is blank or another Collection already has it.
      */
-    open suspend fun update(collection: Collection): Boolean =
-        collection.name.isNotBlank() &&
-            updateRow(collection.id, collection.name.trim(), collection.color, collection.note) == 1
+    @Transaction
+    open suspend fun create(name: String, color: Int, note: String = "", sectionId: Long? = null): Long? {
+        if (name.isBlank()) return null
+        val section = sectionId?.let { sectionStillThere(it) }
+        return insert(Collection(name = name.trim(), color = color, note = note, sectionId = section))
+            .takeIf { it != -1L }
+    }
+
+    /** Creates the Collection an editor hands over: its name, color, note and Section, whatever its id. */
+    open suspend fun create(collection: Collection): Long? =
+        create(collection.name, collection.color, collection.note, collection.sectionId)
+
+    // The subquery leaves the Collection without a Section if the Section is gone.
+    @Query(
+        "UPDATE OR IGNORE collections SET name = :name, color = :color, note = :note, " +
+            "sectionId = (SELECT id FROM sections WHERE id = :sectionId) WHERE id = :id",
+    )
+    protected abstract suspend fun updateRow(id: Long, name: String, color: Int, note: String, sectionId: Long?): Int
+
+    /**
+     * Saves a renamed, recolored or re-noted Collection, or one put in another Section. Returns false, changing
+     * nothing, if its name is blank or another Collection already has it.
+     */
+    open suspend fun update(collection: Collection): Boolean = collection.name.isNotBlank() &&
+        updateRow(collection.id, collection.name.trim(), collection.color, collection.note, collection.sectionId) == 1
 
     /** Deletes the Collection; its Posts go to To sort through the `ON DELETE SET NULL` reference (ADR-0010). */
     @Query("DELETE FROM collections WHERE id = :id")
@@ -65,6 +81,7 @@ abstract class CollectionDao {
                 collectionName = collection.name,
                 collectionColor = collection.color,
                 collectionNote = collection.note,
+                collectionSectionId = collection.sectionId,
             ),
         )
         deletePosts(id, at, deletionId)
@@ -109,12 +126,14 @@ abstract class CollectionDao {
 
     /**
      * Undoes [moveAllPosts]: its Posts are back in their Collection with their modified date. If the move deleted
-     * that Collection, it is recreated with the same name, color and note, unless a Collection has that name by
-     * now, which the Posts join instead.
+     * that Collection, it is recreated with the same name, color and note, in its Section if that is still there,
+     * unless a Collection has that name by now, which the Posts join instead.
      */
     @Transaction
     open suspend fun undoMoveAllPosts(move: AllPostsMove) {
-        val recreated = move.deleted?.let { collectionNamed(it.name) ?: insert(it) }
+        val recreated = move.deleted?.let {
+            collectionNamed(it.name) ?: insert(it.copy(sectionId = it.sectionId?.let { id -> sectionStillThere(id) }))
+        }
         move.posts.forEach { putBack(it.id, recreated ?: it.collectionId ?: return@forEach, it.modifiedAt) }
     }
 }

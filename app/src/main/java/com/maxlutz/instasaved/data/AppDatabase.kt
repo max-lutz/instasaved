@@ -11,17 +11,20 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     entities = [
         Post::class,
         Collection::class,
+        Section::class,
         CollectionDeletion::class,
         Tag::class,
         PostTag::class,
         DeletedPostTrace::class,
     ],
-    version = 8,
+    version = 9,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun postDao(): PostDao
 
     abstract fun collectionDao(): CollectionDao
+
+    abstract fun sectionDao(): SectionDao
 
     abstract fun tagDao(): TagDao
 
@@ -40,6 +43,7 @@ abstract class AppDatabase : RoomDatabase() {
             MIGRATION_5_6,
             MIGRATION_6_7,
             MIGRATION_7_8,
+            MIGRATION_8_9,
         )
 
         fun open(context: Context): AppDatabase =
@@ -149,5 +153,22 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE `posts` ADD COLUMN `modifiedAt` INTEGER NOT NULL DEFAULT 0")
         db.execSQL("UPDATE `posts` SET `modifiedAt` = `addedAt`")
+    }
+}
+
+/** Adds Sections, and the Section of each Collection and of each Collection deleted with its Posts: none so far. */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE `sections` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`name` TEXT NOT NULL COLLATE NOCASE, `collapsed` INTEGER NOT NULL)",
+        )
+        db.execSQL("CREATE UNIQUE INDEX `index_sections_name` ON `sections` (`name`)")
+        db.execSQL(
+            "ALTER TABLE `collections` ADD COLUMN `sectionId` INTEGER " +
+                "REFERENCES `sections`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL",
+        )
+        db.execSQL("CREATE INDEX `index_collections_sectionId` ON `collections` (`sectionId`)")
+        db.execSQL("ALTER TABLE `collection_deletions` ADD COLUMN `collectionSectionId` INTEGER")
     }
 }

@@ -6,6 +6,7 @@ import com.maxlutz.instasaved.data.AppDatabase
 import com.maxlutz.instasaved.data.Backup
 import com.maxlutz.instasaved.data.PALETTE
 import com.maxlutz.instasaved.data.Post
+import com.maxlutz.instasaved.data.Section
 import com.maxlutz.instasaved.data.updateText
 import com.maxlutz.instasaved.deleted.RecentlyDeleted
 import com.maxlutz.instasaved.thumbnails.ThumbnailStore
@@ -36,6 +37,7 @@ class BackupsTest {
     private var clock = 0L
     private val posts get() = db.postDao()
     private val collections get() = db.collectionDao()
+    private val sections get() = db.sectionDao()
     private val tags get() = db.tagDao()
     private val deleted get() = db.recentlyDeletedDao()
 
@@ -145,6 +147,89 @@ class BackupsTest {
         assertEquals(listOf("A", "B"), posts.observeInCollection(recipes).first().map { it.shortcode }.sorted())
         assertTrue(b != checkNotNull(posts.get("A")).id)
         assertTrue(travel != recipes)
+    }
+
+    // Sections (ADR-0014)
+
+    @Test
+    fun sectionsComeBackWithTheCollectionsInThem() = runTest {
+        val food = checkNotNull(sections.create("Food"))
+        checkNotNull(sections.create("Travel"))
+        val pasta = checkNotNull(collections.create("Pasta", PALETTE[0], sectionId = food))
+        checkNotNull(collections.create("Later", PALETTE[1]))
+        val taken = held()
+        val file = written()
+
+        sections.delete(food)
+        collections.deleteKeepingPosts(pasta)
+        checkNotNull(sections.create("Art"))
+        restore(file)
+
+        assertEquals(taken, held())
+        assertEquals(listOf("Food", "Travel"), sections.observeAll().first().map { it.name })
+        assertEquals(food, collections.get(pasta)?.sectionId)
+    }
+
+    @Test
+    fun restoredSectionsAreExpanded() = runTest {
+        val food = checkNotNull(sections.create("Food"))
+        sections.setCollapsed(food, true)
+
+        restore(written())
+
+        assertEquals(listOf(Section(food, "Food", collapsed = false)), held().sections)
+    }
+
+    @Test
+    fun aCollectionDeletedWithItsPostsIsRebuiltInItsSection() = runTest {
+        val food = checkNotNull(sections.create("Food"))
+        val pasta = checkNotNull(collections.create("Pasta", PALETTE[0], sectionId = food))
+        val a = addPost("A", pasta)
+        collections.deleteWithPosts(pasta, at = 5)
+        val file = written()
+        sections.delete(food)
+
+        restore(file)
+        deleted.restore(a)
+
+        assertEquals(food, collections.observeAll().first().single().collection.sectionId)
+    }
+
+    @Test
+    fun aVersion1FileStillRestoresWithNoSections() = runTest {
+        checkNotNull(sections.create("Food"))
+        val file = """
+            {"app":"instasaved","version":1,"createdAt":0,
+            "collections":[{"id":3,"name":"Recipes","color":7,"note":"Weeknights"}],
+            "tags":[{"id":2,"name":"Vegan","color":5}],
+            "posts":[{"id":4,"shortcode":"A","url":"https://www.instagram.com/p/A/","addedAt":1,"modifiedAt":2,
+            "seenInExport":false,"title":"Dal","titleHandEdited":true,"description":"","descriptionHandEdited":false,
+            "postNote":"","ownerUsername":"","ownerName":"","collectionId":3,"tagIds":[2]}],
+            "collectionDeletions":[{"id":1,"collectionName":"Travel","collectionColor":3,"collectionNote":""}],
+            "deletedPostTraces":["B"]}
+        """.trimIndent()
+
+        restore(file)
+
+        assertEquals(emptyList<Section>(), held().sections)
+        val recipes = collections.observeAll().first().single().collection
+        assertEquals(listOf("Recipes", null), listOf(recipes.name, recipes.sectionId))
+        assertEquals(listOf("A"), posts.observeInCollection(3).first().map { it.shortcode })
+        assertEquals(listOf("Vegan"), tags.observeOnPost(4).first().map { it.name })
+        assertTrue(deleted.hasTrace("B"))
+    }
+
+    @Test
+    fun aCollectionInASectionTheFileDoesNotHaveChangesNothing() = runTest {
+        val food = checkNotNull(sections.create("Food"))
+        checkNotNull(collections.create("Pasta", PALETTE[0], sectionId = food))
+        val file = written()
+
+        refused(file.replace("\"sectionId\":$food", "\"sectionId\":${food + 100}"))
+        // Version 2 always has its Sections.
+        refused(file.replace("\"sections\":", "\"parts\":"))
+
+        assertEquals(listOf("Food"), sections.observeAll().first().map { it.name })
     }
 
     // Deleted Posts (ADR-0012)

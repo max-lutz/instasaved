@@ -20,7 +20,6 @@ The author, plus possibly a few friends or family. Android only. Installed from 
 - iOS.
 - Writing anything back to Instagram (moving posts between Instagram Collections, unsaving).
 - Offline video / carousel playback (Embeds need network).
-- Sections (grouping of Collections) — replaced by emoji prefixes in Collection names, since Collections are listed alphabetically.
 - Source (multi-platform) — Instagram only.
 - Any compatibility with the desktop app beyond a one-time Desktop Import (ADR-0009).
 - Sync methods other than the scheduled Drive Export (no watched folder, no manual ZIP pick, no private API).
@@ -30,7 +29,7 @@ The author, plus possibly a few friends or family. Android only. Installed from 
 **Browse**
 - Instagram-like grid of Thumbnails (placeholder card with owner name when missing). Detailed visual design comes from a mockup step before the UI slice.
 - Views: All, To sort, each Collection, Recently deleted.
-- Collections listed alphabetically.
+- Collections listed alphabetically. On the Saved screen they are grouped by Section: first the Collections with no Section, then each Section, alphabetically, under a collapsible header (ADR-0014).
 - Search across Title, Description, Post Note. Sort by saved date, modified date, Title. Group by Tag.
 
 **Post**
@@ -43,6 +42,7 @@ The author, plus possibly a few friends or family. Android only. Installed from 
 **Collections & Tags**
 - Create, rename, recolor (shared 12-color palette carried over from Socials Organizer), Collection Note.
 - Deleting a Collection asks: keep its Posts (to To sort) or delete them too (ADR-0010).
+- Sections: create, rename, delete (its Collections lose their Section, with Undo). A Collection is put in a Section, or in none, from its editor (ADR-0014).
 
 **Capture & Sync**
 - Share-in: share a post from Instagram to InstaSaved → lands in To sort, optionally tag it on the spot. Sharing a Deleted Post asks "You deleted this before. Add it back?" (ADR-0012).
