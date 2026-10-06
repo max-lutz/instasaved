@@ -47,7 +47,7 @@ Share a post from Instagram to add it.</string>
     <string name="cancel">Cancel</string>
     <string name="no_collections">No Collections yet. Create one to sort your Posts into.</string>
     <string name="new_collection">New Collection</string>
-    <string name="add_collection">+ Collection</string>
+    <string name="add_new">+ New</string>
     <string name="new_collection_ellipsis">New Collection…</string>
     <string name="edit_collection">Edit Collection</string>
     <string name="collection_name">Name</string>
@@ -73,6 +73,17 @@ Open a Post to put it here.</string>
     <string name="move_and_delete">Move and delete %1$s</string>
     <string name="moved_and_deleted">%1$s, %2$s deleted</string>
     <string name="collection_has_no_posts">%1$s has no Posts</string>
+    <string name="section">Section</string>
+    <string name="section_none">None</string>
+    <string name="new_section">New Section</string>
+    <string name="new_section_ellipsis">New Section…</string>
+    <string name="rename">Rename</string>
+    <string name="rename_section">Rename Section</string>
+    <string name="section_name">Name</string>
+    <string name="section_name_taken">Another Section already has this name</string>
+    <string name="section_deleted">Section %1$s deleted</string>
+    <string name="section_expanded">Expanded</string>
+    <string name="section_collapsed">Collapsed</string>
     <string name="tags">Tags</string>
     <string name="new_tag">New Tag</string>
     <string name="new_tag_ellipsis">New Tag…</string>
@@ -137,7 +148,7 @@ Open a Post to put it here.</string>
     <string name="backup_written">Backup saved</string>
     <string name="backup_write_failed">Could not save the Backup</string>
     <string name="backup_restore_title">Restore this Backup?</string>
-    <string name="backup_restore_explained">Everything in the app now is replaced by what the Backup holds: Posts, Collections, Tags, notes and Recently deleted.</string>
+    <string name="backup_restore_explained">Everything in the app now is replaced by what the Backup holds: Posts, Collections, Sections, Tags, notes and Recently deleted.</string>
     <string name="backup_restored">Backup restored</string>
     <string name="backup_not_a_backup">Not an InstaSaved backup file. Nothing was changed.</string>
     <string name="backup_from_newer_app">This Backup comes from a newer version of the app. Update the app to restore it.</string>

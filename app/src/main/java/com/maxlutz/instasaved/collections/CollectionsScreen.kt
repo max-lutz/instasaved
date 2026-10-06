@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.scrollBy
@@ -27,7 +28,10 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -45,9 +49,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -62,6 +68,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -74,6 +81,7 @@ import com.maxlutz.instasaved.R
 import com.maxlutz.instasaved.data.Collection
 import com.maxlutz.instasaved.data.CollectionWithCount
 import com.maxlutz.instasaved.data.PALETTE
+import com.maxlutz.instasaved.data.Section
 import com.maxlutz.instasaved.data.nextColor
 import com.maxlutz.instasaved.ui.InstaSavedTheme
 import com.maxlutz.instasaved.ui.ScreenTitle
@@ -84,12 +92,19 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 /**
- * The app's home, "Saved": a cover card for All posts, then one per Collection alphabetically. A cover is a mosaic
- * of the latest Thumbnails in it, underlined in the Collection's color. Dragging a Collection's cover onto another's
- * asks to move all its Posts there.
+ * The app's home, "Saved": a cover card for All posts, then one per Collection with no Section, alphabetically,
+ * then the Sections alphabetically, each a header above the covers of its Collections. A cover is a mosaic of the
+ * latest Thumbnails in it, underlined in the Collection's color. Dragging a Collection's cover onto another's asks
+ * to move all its Posts there. A tap on a Section's header collapses or expands it; a long-press renames or
+ * deletes it.
  *
  * @param allCover the latest Thumbnails of all the Posts, up to 4.
+ * @param collections every Collection, alphabetically.
+ * @param sections every Section, alphabetically.
  * @param coverOf the latest Thumbnails of the Posts in a Collection, up to 4.
+ * @param onCreateSection the name of a Section to create.
+ * @param onRenameSection a Section and its new name.
+ * @param onCollapse a Section, and whether to collapse it or expand it.
  * @param onMoveAll the Collection to move all the Posts from, the one to move them to, and whether to delete the
  *   first along the way.
  * @param onNoPostsToMove a Collection with no Post to move was dropped on another.
@@ -100,16 +115,27 @@ fun CollectionsScreen(
     allCount: Int,
     allCover: List<File>,
     collections: List<CollectionWithCount>,
+    sections: List<Section>,
     coverOf: (Collection) -> List<File>,
     snackbar: SnackbarHostState,
     onOpenAll: () -> Unit,
     onOpenCollection: (Collection) -> Unit,
     onCreate: (Collection) -> Unit,
+    onCreateSection: (String) -> Unit,
+    onRenameSection: (Section, String) -> Unit,
+    onDeleteSection: (Section) -> Unit,
+    onCollapse: (Section, Boolean) -> Unit,
     onMoveAll: (Collection, Collection, Boolean) -> Unit,
     onNoPostsToMove: (Collection) -> Unit,
     bottomBar: @Composable () -> Unit,
 ) {
+    var adding by remember { mutableStateOf(false) }
     var creating by rememberSaveable { mutableStateOf(false) }
+    var creatingSection by rememberSaveable { mutableStateOf(false) }
+    var renamingId by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Null once it is deleted, which closes the dialog.
+    val renaming = sections.find { it.id == renamingId }
+    val layout = remember(collections, sections) { arrangeSaved(collections, sections) }
     // The ids of the Collection dropped and of the one it was dropped on.
     var move by rememberSaveable { mutableStateOf<Pair<Long, Long>?>(null) }
     // Null once either is deleted, which closes the dialog.
@@ -121,11 +147,25 @@ fun CollectionsScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.saved), style = ScreenTitle) },
                 actions = {
-                    SoftButton(
-                        stringResource(R.string.add_collection),
-                        onClick = { creating = true },
-                        modifier = Modifier.padding(end = 14.dp),
-                    )
+                    Box(Modifier.padding(end = 14.dp)) {
+                        SoftButton(stringResource(R.string.add_new), onClick = { adding = true })
+                        DropdownMenu(expanded = adding, onDismissRequest = { adding = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.new_collection)) },
+                                onClick = {
+                                    adding = false
+                                    creating = true
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.new_section)) },
+                                onClick = {
+                                    adding = false
+                                    creatingSection = true
+                                },
+                            )
+                        }
+                    }
                 },
             )
         },
@@ -136,9 +176,13 @@ fun CollectionsScreen(
             allCount,
             allCover,
             collections,
+            layout,
             coverOf,
             onOpenAll,
             onOpenCollection,
+            onCollapse = onCollapse,
+            onRenameSection = { renamingId = it.id },
+            onDeleteSection = onDeleteSection,
             onDrop = { dropped, on ->
                 if (dropped.postCount == 0) onNoPostsToMove(dropped.collection) else move = dropped.collection.id to on.id
             },
@@ -151,11 +195,36 @@ fun CollectionsScreen(
             title = stringResource(R.string.new_collection),
             initial = Collection(name = "", color = nextColor(collections.map { it.collection.color })),
             otherNames = collections.map { it.collection.name },
+            sections = SectionChoice(sections, onCreateSection),
             onSave = {
                 creating = false
                 onCreate(it)
             },
             onDismiss = { creating = false },
+        )
+    }
+    if (creatingSection) {
+        SectionEditorDialog(
+            title = stringResource(R.string.new_section),
+            initial = "",
+            otherNames = sections.map { it.name },
+            onSave = {
+                creatingSection = false
+                onCreateSection(it)
+            },
+            onDismiss = { creatingSection = false },
+        )
+    }
+    if (renaming != null) {
+        SectionEditorDialog(
+            title = stringResource(R.string.rename_section),
+            initial = renaming.name,
+            otherNames = (sections - renaming).map { it.name },
+            onSave = {
+                renamingId = null
+                onRenameSection(renaming, it)
+            },
+            onDismiss = { renamingId = null },
         )
     }
     if (from != null && to != null) {
@@ -177,9 +246,11 @@ fun CollectionsScreen(
 }
 
 /**
- * The grid of covers. A long-press lifts a Collection's cover, which then follows the finger; the grid scrolls
- * while it is held near the top or bottom edge, and the cover under the finger is highlighted.
+ * The grid of covers, laid out as [layout], with a header above each Section's. A long-press lifts a Collection's
+ * cover, which then follows the finger; the grid scrolls while it is held near the top or bottom edge, and the
+ * cover under the finger is highlighted.
  *
+ * @param collections every Collection, whichever Section it is in.
  * @param onDrop the Collection whose cover was dropped, and the one it was dropped on.
  */
 @Composable
@@ -187,9 +258,13 @@ private fun CoverGrid(
     allCount: Int,
     allCover: List<File>,
     collections: List<CollectionWithCount>,
+    layout: SavedLayout,
     coverOf: (Collection) -> List<File>,
     onOpenAll: () -> Unit,
     onOpenCollection: (Collection) -> Unit,
+    onCollapse: (Section, Boolean) -> Unit,
+    onRenameSection: (Section) -> Unit,
+    onDeleteSection: (Section) -> Unit,
     onDrop: (CollectionWithCount, Collection) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -293,7 +368,7 @@ private fun CoverGrid(
                     modifier = Modifier.clickable(onClick = onOpenAll),
                 )
             }
-            items(collections, key = { it.collection.id }) { (collection, postCount) ->
+            val cover: @Composable (CollectionWithCount) -> Unit = { (collection, postCount) ->
                 val id = collection.id
                 DisposableEffect(id) { onDispose { bounds.remove(id) } }
                 Cover(
@@ -308,6 +383,7 @@ private fun CoverGrid(
                     highlighted = targetId == id,
                 )
             }
+            items(layout.withoutSection, key = { it.collection.id }) { cover(it) }
             if (collections.isEmpty()) {
                 item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
                     Text(
@@ -316,6 +392,18 @@ private fun CoverGrid(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+            layout.sections.forEach { (section, inSection) ->
+                item(key = "section-${section.id}", span = { GridItemSpan(maxLineSpan) }) {
+                    SectionHeader(
+                        section,
+                        collectionCount = inSection.size,
+                        onToggle = { onCollapse(section, !section.collapsed) },
+                        onRename = { onRenameSection(section) },
+                        onDelete = { onDeleteSection(section) },
+                    )
+                }
+                if (!section.collapsed) items(inSection, key = { it.collection.id }) { cover(it) }
             }
         }
         lift?.let {
@@ -396,6 +484,75 @@ private suspend fun PointerInputScope.detectLiftAndDrag(
     onDrop()
 }
 
+/**
+ * A Section's header, across the grid: its name, how many Collections are in it, and a chevron telling whether it
+ * is collapsed. A tap is [onToggle]; a long-press opens a menu to rename or delete it.
+ */
+@Composable
+private fun SectionHeader(
+    section: Section,
+    collectionCount: Int,
+    onToggle: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .combinedClickable(onClick = onToggle, onLongClick = { menuOpen = true })
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // The count stays next to the name, and the chevron at the end of the line.
+            Row(
+                Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    section.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Text(
+                    collectionCount.toString(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                painterResource(R.drawable.ic_expand_more),
+                stringResource(if (section.collapsed) R.string.section_collapsed else R.string.section_expanded),
+                Modifier.rotate(if (section.collapsed) -90f else 0f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.rename)) },
+                onClick = {
+                    menuOpen = false
+                    onRename()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.delete)) },
+                onClick = {
+                    menuOpen = false
+                    onDelete()
+                },
+            )
+        }
+    }
+}
+
 /** A cover card: the mosaic, then the name and how many Posts are behind it. [highlighted] as the drop target. */
 @Composable
 private fun Cover(
@@ -464,13 +621,19 @@ private fun CollectionsScreenPreview() {
             allCover = emptyList(),
             collections = listOf(
                 CollectionWithCount(Collection(1, "✈️ Japan", PALETTE[1], "Kyoto first"), 8),
-                CollectionWithCount(Collection(2, "🍝 Pasta", PALETTE[0]), 3),
+                CollectionWithCount(Collection(2, "🍝 Pasta", PALETTE[0], sectionId = 1), 3),
+                CollectionWithCount(Collection(3, "🥗 Salads", PALETTE[2], sectionId = 1), 5),
             ),
+            sections = listOf(Section(1, "Food"), Section(2, "Travel", collapsed = true)),
             coverOf = { emptyList() },
             snackbar = remember { SnackbarHostState() },
             onOpenAll = {},
             onOpenCollection = {},
             onCreate = {},
+            onCreateSection = {},
+            onRenameSection = { _, _ -> },
+            onDeleteSection = {},
+            onCollapse = { _, _ -> },
             onMoveAll = { _, _, _ -> },
             onNoPostsToMove = {},
             bottomBar = {},

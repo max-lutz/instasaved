@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.maxlutz.instasaved.R
 import com.maxlutz.instasaved.collections.CollectionEditorDialog
 import com.maxlutz.instasaved.collections.CollectionMenu
+import com.maxlutz.instasaved.collections.SectionChoice
 import com.maxlutz.instasaved.data.Collection
 import com.maxlutz.instasaved.data.Post
 import com.maxlutz.instasaved.data.PostTag
@@ -49,6 +50,7 @@ import com.maxlutz.instasaved.ui.SoftButton
  * @param onNewTag a Tag created from the picker, to create and put on the Posts.
  * @param onMove the Collection's id to move the Posts to, or null for To sort.
  * @param onMoveToNew a Collection created from the Move menu, to create and move the Posts to.
+ * @param sections what creating that Collection needs to put it in a Section.
  */
 class BulkActions(
     val collections: List<Collection> = emptyList(),
@@ -60,6 +62,7 @@ class BulkActions(
     val onMove: (List<Post>, Long?) -> Unit = { _, _ -> },
     val onMoveToNew: (List<Post>, Collection) -> Unit = { _, _ -> },
     val onDelete: (List<Post>) -> Unit = {},
+    val sections: SectionChoice = SectionChoice(),
 )
 
 /** The Posts picked in a view to act on together. A Post is picked only while the view shows it. */
@@ -164,6 +167,7 @@ internal fun SelectionTopBar(selection: Selection, bulk: BulkActions) {
             title = stringResource(R.string.new_collection),
             initial = Collection(name = "", color = nextColor(bulk.collections.map { it.color })),
             otherNames = bulk.collections.map { it.name },
+            sections = bulk.sections,
             onSave = {
                 creating = false
                 bulk.onMoveToNew(posts, it)

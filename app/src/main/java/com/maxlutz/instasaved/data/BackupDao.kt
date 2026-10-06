@@ -7,7 +7,8 @@ import androidx.room.Transaction
 
 /**
  * A copy of the app's own data: every Post, Recently deleted ones included with their deletion dates, the
- * Collections and Tags, and the traces of Deleted Posts (ADR-0012). Never the Thumbnails (ADR-0001).
+ * Collections with their Sections, the Tags, and the traces of Deleted Posts (ADR-0012). Never the Thumbnails
+ * (ADR-0001).
  */
 data class Backup(
     val posts: List<Post> = emptyList(),
@@ -16,6 +17,7 @@ data class Backup(
     val tags: List<Tag> = emptyList(),
     val postTags: List<PostTag> = emptyList(),
     val deletedPostTraces: List<DeletedPostTrace> = emptyList(),
+    val sections: List<Section> = emptyList(),
 )
 
 @Dao
@@ -38,10 +40,13 @@ abstract class BackupDao {
     @Query("SELECT * FROM deleted_post_traces ORDER BY shortcode")
     protected abstract suspend fun deletedPostTraces(): List<DeletedPostTrace>
 
+    @Query("SELECT * FROM sections ORDER BY id")
+    protected abstract suspend fun sections(): List<Section>
+
     /** Everything the app holds, as of one moment. */
     @Transaction
     open suspend fun read(): Backup =
-        Backup(posts(), collections(), collectionDeletions(), tags(), postTags(), deletedPostTraces())
+        Backup(posts(), collections(), collectionDeletions(), tags(), postTags(), deletedPostTraces(), sections())
 
     @Query("DELETE FROM post_tags")
     protected abstract suspend fun clearPostTags()
@@ -55,6 +60,9 @@ abstract class BackupDao {
     @Query("DELETE FROM collections")
     protected abstract suspend fun clearCollections()
 
+    @Query("DELETE FROM sections")
+    protected abstract suspend fun clearSections()
+
     @Query("DELETE FROM collection_deletions")
     protected abstract suspend fun clearCollectionDeletions()
 
@@ -63,6 +71,9 @@ abstract class BackupDao {
 
     @Insert
     protected abstract suspend fun insertPosts(posts: List<Post>)
+
+    @Insert
+    protected abstract suspend fun insertSections(sections: List<Section>)
 
     @Insert
     protected abstract suspend fun insertCollections(collections: List<Collection>)
@@ -90,8 +101,10 @@ abstract class BackupDao {
         clearPosts()
         clearTags()
         clearCollections()
+        clearSections()
         clearCollectionDeletions()
         clearDeletedPostTraces()
+        insertSections(backup.sections)
         insertCollections(backup.collections)
         insertCollectionDeletions(backup.collectionDeletions)
         insertTags(backup.tags)

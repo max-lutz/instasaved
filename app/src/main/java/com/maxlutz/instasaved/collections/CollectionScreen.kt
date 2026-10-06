@@ -49,6 +49,7 @@ import java.io.File
  * @param onNoPostsToMove "Move all Posts to…" was picked with no Post to move.
  * @param tags every Tag, alphabetically.
  * @param postTags which Posts carry which Tags.
+ * @param sections what the editor needs to put the Collection in a Section.
  * @param bulk what selecting several Posts needs to act on them together.
  */
 @Composable
@@ -61,6 +62,7 @@ fun CollectionScreen(
     groupByTag: Boolean,
     onGroupByTagChange: (Boolean) -> Unit,
     others: List<Collection>,
+    sections: SectionChoice,
     snackbar: SnackbarHostState,
     onBack: () -> Unit,
     onOpen: (Post) -> Unit,
@@ -150,6 +152,7 @@ fun CollectionScreen(
             title = stringResource(R.string.edit_collection),
             initial = collection,
             otherNames = others.map { it.name },
+            sections = sections,
             onSave = {
                 editing = false
                 onSave(it)
@@ -206,6 +209,7 @@ private fun CollectionScreenPreview() {
             groupByTag = true,
             onGroupByTagChange = {},
             others = emptyList(),
+            sections = SectionChoice(),
             snackbar = remember { SnackbarHostState() },
             onBack = {},
             onOpen = {},

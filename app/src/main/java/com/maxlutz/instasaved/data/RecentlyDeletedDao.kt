@@ -35,6 +35,9 @@ abstract class RecentlyDeletedDao {
     @Insert
     protected abstract suspend fun insert(collection: Collection): Long
 
+    @Query("SELECT id FROM sections WHERE id = :id")
+    protected abstract suspend fun sectionStillThere(id: Long): Long?
+
     @Query("UPDATE posts SET deletedAt = NULL, deletionId = NULL, collectionId = :collectionId WHERE id = :id")
     protected abstract suspend fun putBack(id: Long, collectionId: Long?)
 
@@ -46,8 +49,9 @@ abstract class RecentlyDeletedDao {
 
     /**
      * Takes the Post out of Recently deleted, back into its Collection. If that Collection was deleted together
-     * with the Post, it is recreated with the same name, color and note, unless a Collection has that name by
-     * now, which the Post joins instead. A Collection deleted any other way leaves the Post in To sort.
+     * with the Post, it is recreated with the same name, color and note, in the Section it was in if that Section
+     * is still there, unless a Collection has that name by now, which the Post joins instead. A Collection deleted
+     * any other way leaves the Post in To sort. A Section is never recreated.
      */
     @Transaction
     open suspend fun restore(id: Long) {
@@ -56,8 +60,14 @@ abstract class RecentlyDeletedDao {
         val collectionId = if (deletion == null) {
             post.collectionId
         } else {
-            collectionNamed(deletion.collectionName)
-                ?: insert(Collection(0, deletion.collectionName, deletion.collectionColor, deletion.collectionNote))
+            collectionNamed(deletion.collectionName) ?: insert(
+                Collection(
+                    name = deletion.collectionName,
+                    color = deletion.collectionColor,
+                    note = deletion.collectionNote,
+                    sectionId = deletion.collectionSectionId?.let { sectionStillThere(it) },
+                ),
+            )
         }
         putBack(id, collectionId)
         forgetUnusedDeletions()

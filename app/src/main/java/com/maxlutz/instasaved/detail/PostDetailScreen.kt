@@ -40,6 +40,7 @@ import com.maxlutz.instasaved.R
 import com.maxlutz.instasaved.collections.CollectionEditorDialog
 import com.maxlutz.instasaved.collections.CollectionMenu
 import com.maxlutz.instasaved.collections.ColorDot
+import com.maxlutz.instasaved.collections.SectionChoice
 import com.maxlutz.instasaved.data.Collection
 import com.maxlutz.instasaved.data.PALETTE
 import com.maxlutz.instasaved.data.Post
@@ -63,6 +64,7 @@ import com.maxlutz.instasaved.ui.SoftButton
  * @param collections every Collection, alphabetically, to pick the Post's from.
  * @param onCollectionChange the picked Collection's id, or null for To sort.
  * @param onNewCollection a Collection created from the picker, to create and put the Post in.
+ * @param sections what creating that Collection needs to put it in a Section.
  * @param tags every Tag, alphabetically, to pick the Post's from.
  * @param postTags the Tags the Post carries, alphabetically.
  * @param collectionTagIds the ids of the Tags used in the Post's Collection, which the Tag picker shows first.
@@ -77,6 +79,7 @@ fun PostDetailScreen(
     onTextChange: (Post) -> Unit,
     onCollectionChange: (Long?) -> Unit,
     onNewCollection: (Collection) -> Unit,
+    sections: SectionChoice,
     tags: List<Tag>,
     postTags: List<Tag>,
     onAddTag: (Tag) -> Unit,
@@ -138,6 +141,7 @@ fun PostDetailScreen(
                     collections = collections,
                     onPick = onCollectionChange,
                     onNew = onNewCollection,
+                    sections = sections,
                     modifier = Modifier.weight(1f),
                 )
                 SoftButton(stringResource(R.string.delete), onClick = onDelete, danger = true)
@@ -189,6 +193,7 @@ private fun CollectionPicker(
     collections: List<Collection>,
     onPick: (Long?) -> Unit,
     onNew: (Collection) -> Unit,
+    sections: SectionChoice,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -221,6 +226,7 @@ private fun CollectionPicker(
             title = stringResource(R.string.new_collection),
             initial = Collection(name = "", color = nextColor(collections.map { it.color })),
             otherNames = collections.map { it.name },
+            sections = sections,
             onSave = {
                 creating = false
                 onNew(it)
@@ -285,6 +291,7 @@ private fun PostDetailScreenPreview() {
             onTextChange = {},
             onCollectionChange = {},
             onNewCollection = {},
+            sections = SectionChoice(),
             tags = listOf(Tag(1, "Quick", PALETTE[1]), Tag(2, "Vegan", PALETTE[3])),
             postTags = listOf(Tag(2, "Vegan", PALETTE[3])),
             onAddTag = {},

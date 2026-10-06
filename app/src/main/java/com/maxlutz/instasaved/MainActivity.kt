@@ -31,10 +31,12 @@ import androidx.room.withTransaction
 import com.maxlutz.instasaved.backup.BackupFormatException
 import com.maxlutz.instasaved.collections.CollectionScreen
 import com.maxlutz.instasaved.collections.CollectionsScreen
+import com.maxlutz.instasaved.collections.SectionChoice
 import com.maxlutz.instasaved.data.Collection
 import com.maxlutz.instasaved.data.MAX_TAGS_PER_POST
 import com.maxlutz.instasaved.data.Post
 import com.maxlutz.instasaved.data.PostTag
+import com.maxlutz.instasaved.data.Section
 import com.maxlutz.instasaved.data.Tag
 import com.maxlutz.instasaved.data.updateText
 import com.maxlutz.instasaved.deleted.PurgeWorker
@@ -122,6 +124,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             InstaSavedTheme {
                 val collections by database.collectionDao().observeAll().collectAsState(initial = emptyList())
+                val sections by database.sectionDao().observeAll().collectAsState(initial = emptyList())
                 val all by database.postDao().observeAll().collectAsState(initial = emptyList())
                 val toSort by database.postDao().observeToSort().collectAsState(initial = emptyList())
                 val tags by database.tagDao().observeAll().collectAsState(initial = emptyList())
@@ -164,6 +167,11 @@ class MainActivity : ComponentActivity() {
                 val showTagNameTaken: () -> Unit = {
                     lifecycleScope.launch { snackbar.showSnackbar(tagNameTakenMessage) }
                 }
+                val sectionNameTakenMessage = stringResource(R.string.section_name_taken)
+                val showSectionNameTaken: () -> Unit = {
+                    lifecycleScope.launch { snackbar.showSnackbar(sectionNameTakenMessage) }
+                }
+                val sectionChoice = SectionChoice(sections) { createSection(it, onNameTaken = showSectionNameTaken) }
                 val openPost: (Post) -> Unit = { openPostId = it.id }
                 val toSortName = stringResource(R.string.to_sort)
                 val bulk = BulkActions(
@@ -183,6 +191,7 @@ class MainActivity : ComponentActivity() {
                         moveToNew(posts, collection, snackbar, onNameTaken = showNameTaken)
                     },
                     onDelete = { posts -> delete(posts, snackbar) },
+                    sections = sectionChoice,
                 )
                 val bottomBar: @Composable (Tab) -> Unit = { tab ->
                     BottomBar(tab, toSortCount = toSort.size) {
@@ -201,11 +210,22 @@ class MainActivity : ComponentActivity() {
                             allCount = all.size,
                             allCover = allCover,
                             collections = collections,
+                            sections = sections,
                             coverOf = { covers[it.id].orEmpty() },
                             snackbar = snackbar,
                             onOpenAll = { view = View.All },
                             onOpenCollection = { view = View.InCollection(it.id) },
                             onCreate = { createCollection(it, onNameTaken = showNameTaken) },
+                            onCreateSection = { createSection(it, onNameTaken = showSectionNameTaken) },
+                            onRenameSection = { section, name ->
+                                lifecycleScope.launch {
+                                    if (!database.sectionDao().rename(section.id, name)) showSectionNameTaken()
+                                }
+                            },
+                            onDeleteSection = { deleteSection(it, snackbar) },
+                            onCollapse = { section, collapsed ->
+                                lifecycleScope.launch { database.sectionDao().setCollapsed(section.id, collapsed) }
+                            },
                             onMoveAll = { from, to, deleteFrom -> moveAll(from, to, deleteFrom, snackbar) },
                             onNoPostsToMove = { showNoPosts(it, snackbar) },
                             bottomBar = { bottomBar(Tab.Collections) },
@@ -223,6 +243,7 @@ class MainActivity : ComponentActivity() {
                                 onNewCollection = { post, collection ->
                                     createCollection(collection, onNameTaken = showNameTaken, thenAssign = post.id)
                                 },
+                                sections = sectionChoice,
                                 bulk = bulk,
                                 bottomBar = { bottomBar(Tab.ToSort) },
                             )
@@ -304,6 +325,7 @@ class MainActivity : ComponentActivity() {
                                     groupByTag = groupCollectionsByTag,
                                     onGroupByTagChange = { groupCollectionsByTag = it },
                                     others = collections.map { c -> c.collection } - it,
+                                    sections = sectionChoice,
                                     snackbar = snackbar,
                                     onBack = { view = View.Home },
                                     onOpen = openPost,
@@ -346,6 +368,7 @@ class MainActivity : ComponentActivity() {
                                 onNewCollection = { collection ->
                                     createCollection(collection, onNameTaken = showNameTaken, thenAssign = it.id)
                                 },
+                                sections = sectionChoice,
                                 tags = allTags,
                                 postTags = tagsOnPost,
                                 collectionTagIds = remember(it.collectionId, all, postTags) {
@@ -477,9 +500,25 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             database.withTransaction {
                 // The dialog already checks the name; this only fails if it was taken meanwhile.
-                val id = database.collectionDao().create(collection.name, collection.color, collection.note)
-                    ?: return@withTransaction onNameTaken()
+                val id = database.collectionDao().create(collection) ?: return@withTransaction onNameTaken()
                 if (thenAssign != null) database.postDao().setCollection(thenAssign, id, at = now())
+            }
+        }
+    }
+
+    private fun createSection(name: String, onNameTaken: () -> Unit) {
+        lifecycleScope.launch {
+            // The dialog already checks the name; this only fails if it was taken meanwhile.
+            if (database.sectionDao().create(name) == null) onNameTaken()
+        }
+    }
+
+    /** Deletes the Section, leaving its Collections with none, then offers to bring it back with them in it. */
+    private fun deleteSection(section: Section, snackbar: SnackbarHostState) {
+        lifecycleScope.launch {
+            val deletion = database.sectionDao().delete(section.id) ?: return@launch
+            if (snackbar.askUndo(getString(R.string.section_deleted, section.name))) {
+                database.sectionDao().undoDelete(deletion)
             }
         }
     }
@@ -563,8 +602,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             database.withTransaction {
                 // The dialog already checks the name; this only fails if it was taken meanwhile.
-                val id = database.collectionDao().create(collection.name, collection.color, collection.note)
-                    ?: return@withTransaction null
+                val id = database.collectionDao().create(collection) ?: return@withTransaction null
                 database.postDao().setCollection(posts.map { it.id }, id, at = now())
                 id
             } ?: return@launch onNameTaken()
