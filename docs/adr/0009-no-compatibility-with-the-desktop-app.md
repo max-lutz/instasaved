@@ -1,5 +1,7 @@
 # No data compatibility with Socials Organizer, except a one-time Desktop Import
 
+**Superseded by ADR-0015**: the Desktop Import is removed, and InstaSaved has no bridge from Socials Organizer at all.
+
 The desktop app (Socials Organizer, Node + SQLite) is paused, not deleted. InstaSaved does not keep a shared backup format with it and does not sync with it; its own Backup format is free to evolve.
 
 The one bridge is a one-time **Desktop Import** of a desktop backup file (`schema_version: 6`), so existing notes, Tags and Collections aren't lost. Mapping:

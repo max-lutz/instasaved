@@ -32,8 +32,6 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun backupDao(): BackupDao
 
-    abstract fun desktopImportDao(): DesktopImportDao
-
     companion object {
         val MIGRATIONS = arrayOf(
             MIGRATION_1_2,
