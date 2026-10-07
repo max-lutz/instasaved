@@ -228,6 +228,7 @@ class MainActivity : ComponentActivity() {
                             },
                             onMoveAll = { from, to, deleteFrom -> moveAll(from, to, deleteFrom, snackbar) },
                             onNoPostsToMove = { showNoPosts(it, snackbar) },
+                            onPutInSection = { collection, section -> putInSection(collection, section, snackbar) },
                             bottomBar = { bottomBar(Tab.Collections) },
                         )
                         View.ToSort -> {
@@ -519,6 +520,16 @@ class MainActivity : ComponentActivity() {
             val deletion = database.sectionDao().delete(section.id) ?: return@launch
             if (snackbar.askUndo(getString(R.string.section_deleted, section.name))) {
                 database.sectionDao().undoDelete(deletion)
+            }
+        }
+    }
+
+    /** Puts the Collection in the Section, then offers to put it back where it was. */
+    private fun putInSection(collection: Collection, section: Section, snackbar: SnackbarHostState) {
+        lifecycleScope.launch {
+            val change = database.collectionDao().putInSection(collection.id, section.id) ?: return@launch
+            if (snackbar.askUndo(getString(R.string.collection_moved_to_section, collection.name, section.name))) {
+                database.collectionDao().undoPutInSection(change)
             }
         }
     }

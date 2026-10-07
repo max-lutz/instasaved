@@ -178,6 +178,89 @@ class SectionsTest {
         assertEquals(listOf("Pasta!" to null, "Salads" to null), sectionOfEach())
     }
 
+    // Dropping a Collection on a Section's header
+
+    @Test
+    fun aCollectionIsPutInASectionKeepingEverythingElse() = runTest {
+        val food = section("Food")
+        val travel = section("Travel")
+        val pasta = checkNotNull(collections.create("Pasta", PALETTE[2], note = "Weeknights", sectionId = food))
+        val japan = collection("Japan")
+
+        assertEquals(SectionChange(pasta, from = food, to = travel), collections.putInSection(pasta, travel))
+        assertEquals(SectionChange(japan, from = null, to = travel), collections.putInSection(japan, travel))
+
+        assertEquals(listOf("Japan" to "Travel", "Pasta" to "Travel"), sectionOfEach())
+        assertEquals(Collection(pasta, "Pasta", PALETTE[2], "Weeknights", sectionId = travel), collections.get(pasta))
+    }
+
+    @Test
+    fun puttingACollectionInTheSectionItIsInChangesNothing() = runTest {
+        val food = section("Food")
+        val pasta = collection("Pasta", food)
+
+        assertNull(collections.putInSection(pasta, food))
+
+        assertEquals(listOf("Pasta" to "Food"), sectionOfEach())
+    }
+
+    @Test
+    fun puttingACollectionInASectionChangesNothingOnceEitherIsGone() = runTest {
+        val food = section("Food")
+        val travel = section("Travel")
+        val pasta = collection("Pasta", food)
+        val salads = collection("Salads")
+        sections.delete(travel)
+        collections.deleteKeepingPosts(salads)
+
+        assertNull(collections.putInSection(pasta, travel))
+        assertNull(collections.putInSection(salads, food))
+
+        assertEquals(listOf("Pasta" to "Food"), sectionOfEach())
+    }
+
+    @Test
+    fun undoingPutsTheCollectionBackInItsSectionOrInNone() = runTest {
+        val food = section("Food")
+        val travel = section("Travel")
+        val pasta = collection("Pasta", food)
+        val japan = collection("Japan")
+        val pastaChange = checkNotNull(collections.putInSection(pasta, travel))
+        val japanChange = checkNotNull(collections.putInSection(japan, travel))
+
+        collections.undoPutInSection(pastaChange)
+        collections.undoPutInSection(japanChange)
+
+        assertEquals(listOf("Japan" to null, "Pasta" to "Food"), sectionOfEach())
+    }
+
+    @Test
+    fun undoingLeavesTheCollectionWithNoSectionOnceItsOwnIsGone() = runTest {
+        val food = section("Food")
+        val travel = section("Travel")
+        val pasta = collection("Pasta", food)
+        val change = checkNotNull(collections.putInSection(pasta, travel))
+        sections.delete(food)
+
+        collections.undoPutInSection(change)
+
+        assertEquals(listOf("Pasta" to null), sectionOfEach())
+    }
+
+    @Test
+    fun undoingLeavesACollectionPutElsewhereMeanwhile() = runTest {
+        val food = section("Food")
+        val travel = section("Travel")
+        val art = section("Art")
+        val pasta = collection("Pasta", food)
+        val change = checkNotNull(collections.putInSection(pasta, travel))
+        collections.putInSection(pasta, art)
+
+        collections.undoPutInSection(change)
+
+        assertEquals(listOf("Pasta" to "Art"), sectionOfEach())
+    }
+
     // Deleting
 
     @Test

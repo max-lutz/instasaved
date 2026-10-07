@@ -53,6 +53,14 @@ data class CollectionDeletion(
 )
 
 /**
+ * A Collection put in a Section, as [CollectionDao.undoPutInSection] needs it.
+ *
+ * @property from the Section it was in before, if any.
+ * @property to the Section it was put in.
+ */
+data class SectionChange(val collectionId: Long, val from: Long?, val to: Long)
+
+/**
  * A move of all the Posts of a Collection to another, as [CollectionDao.undoMoveAllPosts] needs it.
  *
  * @property posts the Posts as they were before the move. When the move deleted their Collection, its Recently
