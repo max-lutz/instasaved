@@ -21,7 +21,7 @@ The author, plus possibly a few friends or family. Android only. Installed from 
 - Writing anything back to Instagram (moving posts between Instagram Collections, unsaving).
 - Offline video / carousel playback (Embeds need network).
 - Source (multi-platform) — Instagram only.
-- Any compatibility with the desktop app beyond a one-time Desktop Import (ADR-0009).
+- Any compatibility with the desktop app (ADR-0015).
 - Sync methods other than the scheduled Drive Export (no watched folder, no manual ZIP pick, no private API).
 
 ## v1 scope
@@ -52,7 +52,6 @@ The author, plus possibly a few friends or family. Android only. Installed from 
 **Data safety**
 - Android automatic backup (database + settings, no Thumbnails).
 - Manual backup file: write / restore (restore is wipe-and-replace). Backups include Recently deleted Posts with their deletion dates.
-- One-time Desktop Import of a Socials Organizer v6 backup.
 
 ## Setup the user does once
 

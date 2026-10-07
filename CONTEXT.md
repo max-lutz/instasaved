@@ -50,7 +50,7 @@ _Avoid_: Download, dump, backup (Backup is the app's own data)
 
 **Sync**:
 Reading the Exports in Google Drive that the app has not applied yet and applying them to the app's Posts according to the sync rules (`docs/sync-spec.md`). One direction only: Instagram → app. It only adds and updates: unsaving a post on Instagram changes nothing in the app.
-_Avoid_: Import (reserved for the one-time Desktop Import), refresh
+_Avoid_: Import, refresh
 
 **Share-in**:
 Adding a Post by sharing it from Instagram to the app via Android's share sheet. Lands in To sort immediately, without waiting for the next Export.
@@ -83,7 +83,3 @@ _Avoid_: Notification, report
 **Backup**:
 A copy of the app's own data (Posts, Collections, Sections, Tags, notes, Deleted Posts) — via Android's automatic backup, or a manual backup file. Never includes Thumbnails.
 _Avoid_: Export (that's Instagram's)
-
-**Desktop Import**:
-The one-time import of a backup file from the retired Socials Organizer desktop app (schema v6).
-_Avoid_: Migration, restore
