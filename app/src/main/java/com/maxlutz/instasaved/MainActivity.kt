@@ -32,15 +32,16 @@ import androidx.room.withTransaction
 import com.maxlutz.instasaved.backup.BackupFormatException
 import com.maxlutz.instasaved.collections.CollectionScreen
 import com.maxlutz.instasaved.collections.CollectionsScreen
+import com.maxlutz.instasaved.collections.SectionChoice
 import com.maxlutz.instasaved.data.Collection
 import com.maxlutz.instasaved.data.MAX_TAGS_PER_POST
 import com.maxlutz.instasaved.data.Post
 import com.maxlutz.instasaved.data.PostTag
+import com.maxlutz.instasaved.data.Section
 import com.maxlutz.instasaved.data.Tag
 import com.maxlutz.instasaved.data.updateText
 import com.maxlutz.instasaved.deleted.PurgeWorker
 import com.maxlutz.instasaved.deleted.RecentlyDeletedScreen
-import com.maxlutz.instasaved.desktop.DesktopBackupFormatException
 import com.maxlutz.instasaved.detail.PostDetailScreen
 import com.maxlutz.instasaved.grid.AllScreen
 import com.maxlutz.instasaved.grid.Browse
@@ -80,7 +81,6 @@ class MainActivity : ComponentActivity() {
     private val thumbnailStore by lazy { (application as InstaSavedApplication).thumbnailStore }
     private val recentlyDeleted by lazy { (application as InstaSavedApplication).recentlyDeleted }
     private val backups by lazy { (application as InstaSavedApplication).backups }
-    private val desktopImport by lazy { (application as InstaSavedApplication).desktopImport }
     private val sync by lazy { (application as InstaSavedApplication).sync }
     private val syncStatus by lazy { (application as InstaSavedApplication).syncStatus }
     private val shareIn by lazy { ShareIn(database.postDao(), database.recentlyDeletedDao()) }
@@ -103,9 +103,6 @@ class MainActivity : ComponentActivity() {
     // Any type: file managers do not agree on what a .json file is.
     private val pickBackupFile =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> restoreFrom = uri } }
-
-    private val pickDesktopBackup =
-        registerForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(::importDesktopBackup) }
 
     // Google's account picker and consent screen, the first time "Sync now" is tapped.
     private val consentToDrive =
@@ -141,6 +138,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             InstaSavedTheme {
                 val collections by database.collectionDao().observeAll().collectAsState(initial = emptyList())
+                val sections by database.sectionDao().observeAll().collectAsState(initial = emptyList())
                 val all by database.postDao().observeAll().collectAsState(initial = emptyList())
                 val toSort by database.postDao().observeToSort().collectAsState(initial = emptyList())
                 val tags by database.tagDao().observeAll().collectAsState(initial = emptyList())
@@ -185,6 +183,11 @@ class MainActivity : ComponentActivity() {
                 val showTagNameTaken: () -> Unit = {
                     lifecycleScope.launch { snackbar.showSnackbar(tagNameTakenMessage) }
                 }
+                val sectionNameTakenMessage = stringResource(R.string.section_name_taken)
+                val showSectionNameTaken: () -> Unit = {
+                    lifecycleScope.launch { snackbar.showSnackbar(sectionNameTakenMessage) }
+                }
+                val sectionChoice = SectionChoice(sections) { createSection(it, onNameTaken = showSectionNameTaken) }
                 val openPost: (Post) -> Unit = { openPostId = it.id }
                 val toSortName = stringResource(R.string.to_sort)
                 val bulk = BulkActions(
@@ -204,6 +207,7 @@ class MainActivity : ComponentActivity() {
                         moveToNew(posts, collection, snackbar, onNameTaken = showNameTaken)
                     },
                     onDelete = { posts -> delete(posts, snackbar) },
+                    sections = sectionChoice,
                 )
                 val bottomBar: @Composable (Tab) -> Unit = { tab ->
                     BottomBar(tab, toSortCount = toSort.size) {
@@ -222,13 +226,25 @@ class MainActivity : ComponentActivity() {
                             allCount = all.size,
                             allCover = allCover,
                             collections = collections,
+                            sections = sections,
                             coverOf = { covers[it.id].orEmpty() },
                             snackbar = snackbar,
                             onOpenAll = { view = View.All },
                             onOpenCollection = { view = View.InCollection(it.id) },
                             onCreate = { createCollection(it, onNameTaken = showNameTaken) },
+                            onCreateSection = { createSection(it, onNameTaken = showSectionNameTaken) },
+                            onRenameSection = { section, name ->
+                                lifecycleScope.launch {
+                                    if (!database.sectionDao().rename(section.id, name)) showSectionNameTaken()
+                                }
+                            },
+                            onDeleteSection = { deleteSection(it, snackbar) },
+                            onCollapse = { section, collapsed ->
+                                lifecycleScope.launch { database.sectionDao().setCollapsed(section.id, collapsed) }
+                            },
                             onMoveAll = { from, to, deleteFrom -> moveAll(from, to, deleteFrom, snackbar) },
                             onNoPostsToMove = { showNoPosts(it, snackbar) },
+                            onPutInSection = { collection, section -> putInSection(collection, section, snackbar) },
                             bottomBar = { bottomBar(Tab.Collections) },
                             syncStatus = { SyncStatusText(status, syncing, short = true) },
                         )
@@ -245,6 +261,7 @@ class MainActivity : ComponentActivity() {
                                 onNewCollection = { post, collection ->
                                     createCollection(collection, onNameTaken = showNameTaken, thenAssign = post.id)
                                 },
+                                sections = sectionChoice,
                                 bulk = bulk,
                                 bottomBar = { bottomBar(Tab.ToSort) },
                             )
@@ -270,7 +287,6 @@ class MainActivity : ComponentActivity() {
                                     pickBackupDestination.launch("instasaved-backup-${LocalDate.now()}.json")
                                 },
                                 onRestoreBackup = { pickBackupFile.launch(arrayOf("*/*")) },
-                                onDesktopImport = { pickDesktopBackup.launch(arrayOf("*/*")) },
                                 bottomBar = { bottomBar(Tab.More) },
                             )
                         }
@@ -329,6 +345,7 @@ class MainActivity : ComponentActivity() {
                                     groupByTag = groupCollectionsByTag,
                                     onGroupByTagChange = { groupCollectionsByTag = it },
                                     others = collections.map { c -> c.collection } - it,
+                                    sections = sectionChoice,
                                     snackbar = snackbar,
                                     onBack = { view = View.Home },
                                     onOpen = openPost,
@@ -371,6 +388,7 @@ class MainActivity : ComponentActivity() {
                                 onNewCollection = { collection ->
                                     createCollection(collection, onNameTaken = showNameTaken, thenAssign = it.id)
                                 },
+                                sections = sectionChoice,
                                 tags = allTags,
                                 postTags = tagsOnPost,
                                 collectionTagIds = remember(it.collectionId, all, postTags) {
@@ -510,33 +528,40 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Adds the Socials Organizer backup to what the app holds, or tells why nothing was changed. */
-    private fun importDesktopBackup(from: Uri) {
-        lifecycleScope.launch {
-            val message = try {
-                val summary = desktopImport.import(
-                    contentResolver.openInputStream(from) ?: throw IOException("No stream for $from"),
-                )
-                // The desktop app has no Thumbnails.
-                ThumbnailWorker.downloadNow(this@MainActivity)
-                getString(R.string.desktop_import_done, summary.added, summary.completed, summary.skipped)
-            } catch (_: DesktopBackupFormatException) {
-                getString(R.string.desktop_import_not_a_backup)
-            } catch (_: IOException) {
-                getString(R.string.backup_read_failed)
-            }
-            Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
-        }
-    }
-
     /** Creates the Collection, then puts the Post [thenAssign] in it, if any. */
     private fun createCollection(collection: Collection, onNameTaken: () -> Unit, thenAssign: Long? = null) {
         lifecycleScope.launch {
             database.withTransaction {
                 // The dialog already checks the name; this only fails if it was taken meanwhile.
-                val id = database.collectionDao().create(collection.name, collection.color, collection.note)
-                    ?: return@withTransaction onNameTaken()
+                val id = database.collectionDao().create(collection) ?: return@withTransaction onNameTaken()
                 if (thenAssign != null) database.postDao().setCollection(thenAssign, id, at = now())
+            }
+        }
+    }
+
+    private fun createSection(name: String, onNameTaken: () -> Unit) {
+        lifecycleScope.launch {
+            // The dialog already checks the name; this only fails if it was taken meanwhile.
+            if (database.sectionDao().create(name) == null) onNameTaken()
+        }
+    }
+
+    /** Deletes the Section, leaving its Collections with none, then offers to bring it back with them in it. */
+    private fun deleteSection(section: Section, snackbar: SnackbarHostState) {
+        lifecycleScope.launch {
+            val deletion = database.sectionDao().delete(section.id) ?: return@launch
+            if (snackbar.askUndo(getString(R.string.section_deleted, section.name))) {
+                database.sectionDao().undoDelete(deletion)
+            }
+        }
+    }
+
+    /** Puts the Collection in the Section, then offers to put it back where it was. */
+    private fun putInSection(collection: Collection, section: Section, snackbar: SnackbarHostState) {
+        lifecycleScope.launch {
+            val change = database.collectionDao().putInSection(collection.id, section.id) ?: return@launch
+            if (snackbar.askUndo(getString(R.string.collection_moved_to_section, collection.name, section.name))) {
+                database.collectionDao().undoPutInSection(change)
             }
         }
     }
@@ -620,8 +645,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             database.withTransaction {
                 // The dialog already checks the name; this only fails if it was taken meanwhile.
-                val id = database.collectionDao().create(collection.name, collection.color, collection.note)
-                    ?: return@withTransaction null
+                val id = database.collectionDao().create(collection) ?: return@withTransaction null
                 database.postDao().setCollection(posts.map { it.id }, id, at = now())
                 id
             } ?: return@launch onNameTaken()

@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import com.maxlutz.instasaved.R
 import com.maxlutz.instasaved.collections.CollectionEditorDialog
 import com.maxlutz.instasaved.collections.CollectionMenu
+import com.maxlutz.instasaved.collections.SectionChoice
 import com.maxlutz.instasaved.data.Collection
 import com.maxlutz.instasaved.data.PALETTE
 import com.maxlutz.instasaved.data.Post
@@ -57,6 +58,7 @@ import java.io.File
  * @param collections every Collection, alphabetically, to file a Post in.
  * @param now the current time in epoch milliseconds, to say how long ago each Post was added.
  * @param onNewCollection a Collection created from a Post's File menu, to create and put that Post in.
+ * @param sections what creating that Collection needs to put it in a Section.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,6 +71,7 @@ fun ToSortScreen(
     onOpen: (Post) -> Unit,
     onFile: (Post, Long) -> Unit,
     onNewCollection: (Post, Collection) -> Unit,
+    sections: SectionChoice,
     bulk: BulkActions,
     bottomBar: @Composable () -> Unit,
 ) {
@@ -123,6 +126,7 @@ fun ToSortScreen(
             title = stringResource(R.string.new_collection),
             initial = Collection(name = "", color = nextColor(collections.map { it.color })),
             otherNames = collections.map { it.name },
+            sections = sections,
             onSave = {
                 creatingForId = null
                 onNewCollection(post, it)
@@ -215,6 +219,7 @@ private fun ToSortScreenPreview() {
             onOpen = {},
             onFile = { _, _ -> },
             onNewCollection = { _, _ -> },
+            sections = SectionChoice(),
             bulk = BulkActions(),
             bottomBar = {},
         )
@@ -234,6 +239,7 @@ private fun EmptyToSortScreenPreview() {
             onOpen = {},
             onFile = { _, _ -> },
             onNewCollection = { _, _ -> },
+            sections = SectionChoice(),
             bulk = BulkActions(),
             bottomBar = {},
         )

@@ -166,6 +166,7 @@ private val PostSort.label: Int
 @Preview
 @Composable
 private fun SearchScreenGroupedByTagPreview() {
+    val quick = Tag(2, "Quick", PALETTE[5])
     val vegan = Tag(1, "Vegan", PALETTE[3])
     InstaSavedTheme {
         SearchScreen(
@@ -173,7 +174,11 @@ private fun SearchScreenGroupedByTagPreview() {
                 Post(id = i + 1L, shortcode = "P$i", url = "", addedAt = 0, title = title)
             },
             thumbnailOf = { null },
-            browsing = Browsing(Browse(groupByTag = true), listOf(vegan), listOf(PostTag(2, 1), PostTag(3, 1))),
+            browsing = Browsing(
+                Browse(groupByTag = true),
+                listOf(quick, vegan),
+                listOf(PostTag(2, 1), PostTag(3, 1), PostTag(3, 2)),
+            ),
             snackbar = remember { SnackbarHostState() },
             onOpen = {},
             bulk = BulkActions(),

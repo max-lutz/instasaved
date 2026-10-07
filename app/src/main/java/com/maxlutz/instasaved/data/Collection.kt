@@ -3,6 +3,7 @@ package com.maxlutz.instasaved.data
 import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
+import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -11,13 +12,19 @@ import androidx.room.PrimaryKey
  * (ADR-0006).
  *
  * @property color an ARGB color, normally from [PALETTE].
+ * @property sectionId the Section the Collection is in, if any. A deleted Section leaves it null (ADR-0014).
  */
-@Entity(tableName = "collections", indices = [Index(value = ["name"], unique = true)])
+@Entity(
+    tableName = "collections",
+    indices = [Index(value = ["name"], unique = true), Index("sectionId")],
+    foreignKeys = [ForeignKey(Section::class, ["id"], ["sectionId"], onDelete = ForeignKey.SET_NULL)],
+)
 data class Collection(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     @ColumnInfo(collate = ColumnInfo.NOCASE) val name: String,
     val color: Int,
     val note: String = "",
+    val sectionId: Long? = null,
 )
 
 /** Whether two Collection names, or two Tag names, are the same name. */
@@ -32,6 +39,9 @@ data class CollectionWithCount(
 /**
  * A Collection deleted together with its Posts (ADR-0010): what it was, so that restoring those Posts from Recently
  * deleted can recreate it (ADR-0012). The Posts point here through [Post.deletionId].
+ *
+ * @property collectionSectionId the Section it was in, if any: the recreated Collection goes back in it if that
+ *   Section is still there. Not a reference, so that undoing the Section's deletion finds it again.
  */
 @Entity(tableName = "collection_deletions")
 data class CollectionDeletion(
@@ -39,7 +49,16 @@ data class CollectionDeletion(
     val collectionName: String,
     val collectionColor: Int,
     val collectionNote: String,
+    val collectionSectionId: Long? = null,
 )
+
+/**
+ * A Collection put in a Section, as [CollectionDao.undoPutInSection] needs it.
+ *
+ * @property from the Section it was in before, if any.
+ * @property to the Section it was put in.
+ */
+data class SectionChange(val collectionId: Long, val from: Long?, val to: Long)
 
 /**
  * A move of all the Posts of a Collection to another, as [CollectionDao.undoMoveAllPosts] needs it.

@@ -21,8 +21,12 @@ Freeform personal text on a single Post — why it was saved, or anything worth 
 _Avoid_: Note (ambiguous — use Post Note or Collection Note), annotation
 
 **Collection**:
-A user-named group of Posts in the app, with a Collection Note and a color. A Post belongs to at most one Collection. Collections are listed alphabetically by name; an emoji prefix is the intended way to group related Collections together.
+A user-named group of Posts in the app, with a Collection Note and a color. A Post belongs to at most one Collection. Collections are listed alphabetically by name.
 _Avoid_: Category, group, folder, album
+
+**Section**:
+A user-named group of Collections, shown on the Saved screen under a collapsible header. A name only: no color, no note. A Collection belongs to at most one Section; there is no Section inside a Section. A Section may be empty and exists until the user deletes it, which leaves its Collections with no Section.
+_Avoid_: Folder, group, category, using it for a part of a screen
 
 **Instagram Collection**:
 A collection as it exists on Instagram, read from the Export. Used to pick the Collection a Post lands in the first time an Export mentions it (the Collection with the same name — see Placement in `docs/sync-spec.md`), and shown on the Post as "also on Instagram in". Never written to, and never moves a Post the user has sorted or that an earlier Export already placed.
@@ -46,7 +50,7 @@ _Avoid_: Download, dump, backup (Backup is the app's own data)
 
 **Sync**:
 Reading the Exports in Google Drive that the app has not applied yet and applying them to the app's Posts according to the sync rules (`docs/sync-spec.md`). One direction only: Instagram → app. It only adds and updates: unsaving a post on Instagram changes nothing in the app.
-_Avoid_: Import (reserved for the one-time Desktop Import), refresh
+_Avoid_: Import, refresh
 
 **Share-in**:
 Adding a Post by sharing it from Instagram to the app via Android's share sheet. Lands in To sort immediately, without waiting for the next Export.
@@ -77,9 +81,5 @@ The dismissable in-app recap of the last Sync ("12 new · 2 no longer saved"), s
 _Avoid_: Notification, report
 
 **Backup**:
-A copy of the app's own data (Posts, Collections, Tags, notes, Deleted Posts) — via Android's automatic backup, or a manual backup file. Never includes Thumbnails.
+A copy of the app's own data (Posts, Collections, Sections, Tags, notes, Deleted Posts) — via Android's automatic backup, or a manual backup file. Never includes Thumbnails.
 _Avoid_: Export (that's Instagram's)
-
-**Desktop Import**:
-The one-time import of a backup file from the retired Socials Organizer desktop app (schema v6).
-_Avoid_: Migration, restore

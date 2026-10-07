@@ -1,12 +1,12 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 9,
-    "identityHash": "c34bcb7824728fb88db5bbfb6e767649",
+    "version": 10,
+    "identityHash": "290f7734581e0aa5746330f350c83ca6",
     "entities": [
       {
         "tableName": "posts",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `shortcode` TEXT NOT NULL, `url` TEXT NOT NULL, `addedAt` INTEGER NOT NULL, `modifiedAt` INTEGER NOT NULL, `seenInExport` INTEGER NOT NULL, `title` TEXT NOT NULL, `titleHandEdited` INTEGER NOT NULL, `description` TEXT NOT NULL, `descriptionHandEdited` INTEGER NOT NULL, `postNote` TEXT NOT NULL, `deletedAt` INTEGER, `collectionId` INTEGER, `deletionId` INTEGER, `ownerUsername` TEXT NOT NULL, `ownerName` TEXT NOT NULL, `thumbnailFailures` INTEGER NOT NULL, `thumbnailFailedAt` INTEGER, FOREIGN KEY(`collectionId`) REFERENCES `collections`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL , FOREIGN KEY(`deletionId`) REFERENCES `collection_deletions`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `shortcode` TEXT NOT NULL, `url` TEXT NOT NULL, `addedAt` INTEGER NOT NULL, `modifiedAt` INTEGER NOT NULL, `seenInExport` INTEGER NOT NULL, `title` TEXT NOT NULL, `titleHandEdited` INTEGER NOT NULL, `description` TEXT NOT NULL, `descriptionHandEdited` INTEGER NOT NULL, `postNote` TEXT NOT NULL, `deletedAt` INTEGER, `collectionId` INTEGER, `deletionId` INTEGER, `ownerUsername` TEXT NOT NULL, `ownerName` TEXT NOT NULL, `thumbnailFailures` INTEGER NOT NULL, `thumbnailFailedAt` INTEGER, `instagramCollections` TEXT NOT NULL, FOREIGN KEY(`collectionId`) REFERENCES `collections`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL , FOREIGN KEY(`deletionId`) REFERENCES `collection_deletions`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
         "fields": [
           {
             "fieldPath": "id",
@@ -111,6 +111,12 @@
             "fieldPath": "thumbnailFailedAt",
             "columnName": "thumbnailFailedAt",
             "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "instagramCollections",
+            "columnName": "instagramCollections",
+            "affinity": "TEXT",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -447,11 +453,47 @@
             "shortcode"
           ]
         }
+      },
+      {
+        "tableName": "applied_exports",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`driveFileId` TEXT NOT NULL, `name` TEXT NOT NULL, `exportDate` TEXT NOT NULL, `appliedAt` INTEGER NOT NULL, PRIMARY KEY(`driveFileId`))",
+        "fields": [
+          {
+            "fieldPath": "driveFileId",
+            "columnName": "driveFileId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exportDate",
+            "columnName": "exportDate",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appliedAt",
+            "columnName": "appliedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "driveFileId"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c34bcb7824728fb88db5bbfb6e767649')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '290f7734581e0aa5746330f350c83ca6')"
     ]
   }
 }

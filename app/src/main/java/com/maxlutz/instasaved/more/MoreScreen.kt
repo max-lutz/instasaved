@@ -32,7 +32,7 @@ import java.time.LocalDate
 
 /**
  * Everything that is not browsing Posts: Sync now with the sync status, Recently deleted and the Tags, then the
- * manual backup file and the Desktop Import.
+ * manual backup file.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,7 +47,6 @@ fun MoreScreen(
     onOpenTags: () -> Unit,
     onWriteBackup: () -> Unit,
     onRestoreBackup: () -> Unit,
-    onDesktopImport: () -> Unit,
     bottomBar: @Composable () -> Unit,
 ) {
     Scaffold(
@@ -69,7 +68,6 @@ fun MoreScreen(
             HorizontalDivider()
             MoreRow(stringResource(R.string.backup_write), onWriteBackup)
             MoreRow(stringResource(R.string.backup_restore), onRestoreBackup)
-            MoreRow(stringResource(R.string.desktop_import), onDesktopImport)
         }
     }
 }
@@ -101,7 +99,6 @@ private fun MoreScreenPreview() {
             onOpenTags = {},
             onWriteBackup = {},
             onRestoreBackup = {},
-            onDesktopImport = {},
             bottomBar = {},
         )
     }

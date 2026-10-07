@@ -34,6 +34,7 @@ class RecentlyDeletedTest {
     private var clock = 0L
     private val posts get() = db.postDao()
     private val collections get() = db.collectionDao()
+    private val sections get() = db.sectionDao()
     private val dao get() = db.recentlyDeletedDao()
 
     @Before
@@ -134,6 +135,46 @@ class RecentlyDeletedTest {
 
         assertEquals(listOf("Recipes"), names())
         assertEquals(setOf("A", "B"), inCollection(collectionNamed("Recipes").id).toSet())
+    }
+
+    @Test
+    fun restoreRecreatesTheCollectionInItsSectionWhenThatIsStillThere() = runTest {
+        val food = checkNotNull(sections.create("Food"))
+        val pasta = checkNotNull(collections.create("Pasta", PALETTE[0], sectionId = food))
+        val post = addPost("A", pasta)
+        collections.deleteWithPosts(pasta, at = 1)
+
+        dao.restore(post)
+
+        assertEquals(food, collectionNamed("Pasta").sectionId)
+        assertEquals(listOf("A"), inCollection(collectionNamed("Pasta").id))
+    }
+
+    @Test
+    fun restoreRecreatesTheCollectionWithNoSectionOnceThatIsGoneAndNeverTheSection() = runTest {
+        val food = checkNotNull(sections.create("Food"))
+        val pasta = checkNotNull(collections.create("Pasta", PALETTE[0], sectionId = food))
+        val post = addPost("A", pasta)
+        collections.deleteWithPosts(pasta, at = 1)
+        sections.delete(food)
+
+        dao.restore(post)
+
+        assertNull(collectionNamed("Pasta").sectionId)
+        assertEquals(emptyList<String>(), sections.observeAll().first().map { it.name })
+    }
+
+    @Test
+    fun restoreFindsTheSectionAgainOnceItsDeletionIsUndone() = runTest {
+        val food = checkNotNull(sections.create("Food"))
+        val pasta = checkNotNull(collections.create("Pasta", PALETTE[0], sectionId = food))
+        val post = addPost("A", pasta)
+        collections.deleteWithPosts(pasta, at = 1)
+        sections.undoDelete(checkNotNull(sections.delete(food)))
+
+        dao.restore(post)
+
+        assertEquals(food, collectionNamed("Pasta").sectionId)
     }
 
     @Test

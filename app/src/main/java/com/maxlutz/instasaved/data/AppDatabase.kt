@@ -12,13 +12,14 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     entities = [
         Post::class,
         Collection::class,
+        Section::class,
         CollectionDeletion::class,
         Tag::class,
         PostTag::class,
         DeletedPostTrace::class,
         AppliedExport::class,
     ],
-    version = 9,
+    version = 10,
 )
 @TypeConverters(NameListConverter::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -26,13 +27,13 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun collectionDao(): CollectionDao
 
+    abstract fun sectionDao(): SectionDao
+
     abstract fun tagDao(): TagDao
 
     abstract fun recentlyDeletedDao(): RecentlyDeletedDao
 
     abstract fun backupDao(): BackupDao
-
-    abstract fun desktopImportDao(): DesktopImportDao
 
     abstract fun syncDao(): SyncDao
 
@@ -46,6 +47,7 @@ abstract class AppDatabase : RoomDatabase() {
             MIGRATION_6_7,
             MIGRATION_7_8,
             MIGRATION_8_9,
+            MIGRATION_9_10,
         )
 
         fun open(context: Context): AppDatabase =
@@ -158,8 +160,25 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
     }
 }
 
-/** Adds the Exports Sync has applied (none yet) and each Post's Instagram Collections, unknown so far. */
+/** Adds Sections, and the Section of each Collection and of each Collection deleted with its Posts: none so far. */
 val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE `sections` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`name` TEXT NOT NULL COLLATE NOCASE, `collapsed` INTEGER NOT NULL)",
+        )
+        db.execSQL("CREATE UNIQUE INDEX `index_sections_name` ON `sections` (`name`)")
+        db.execSQL(
+            "ALTER TABLE `collections` ADD COLUMN `sectionId` INTEGER " +
+                "REFERENCES `sections`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL",
+        )
+        db.execSQL("CREATE INDEX `index_collections_sectionId` ON `collections` (`sectionId`)")
+        db.execSQL("ALTER TABLE `collection_deletions` ADD COLUMN `collectionSectionId` INTEGER")
+    }
+}
+
+/** Adds the Exports Sync has applied (none yet) and each Post's Instagram Collections, unknown so far. */
+val MIGRATION_9_10 = object : Migration(9, 10) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
             "CREATE TABLE `applied_exports` (`driveFileId` TEXT NOT NULL, `name` TEXT NOT NULL, " +
