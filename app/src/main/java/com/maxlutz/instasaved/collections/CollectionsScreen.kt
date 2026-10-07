@@ -53,10 +53,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -95,8 +99,8 @@ import java.io.File
  * The app's home, "Saved": a cover card for All posts, then one per Collection with no Section, alphabetically,
  * then the Sections alphabetically, each a header above the covers of its Collections. A cover is a mosaic of the
  * latest Thumbnails in it, underlined in the Collection's color. Dragging a Collection's cover onto another's asks
- * to move all its Posts there. A tap on a Section's header collapses or expands it; a long-press renames or
- * deletes it.
+ * to move all its Posts there; dragging it onto a Section's header puts the Collection in that Section. A tap on a
+ * Section's header collapses or expands it; a long-press renames or deletes it.
  *
  * @param allCover the latest Thumbnails of all the Posts, up to 4.
  * @param collections every Collection, alphabetically.
@@ -108,6 +112,7 @@ import java.io.File
  * @param onMoveAll the Collection to move all the Posts from, the one to move them to, and whether to delete the
  *   first along the way.
  * @param onNoPostsToMove a Collection with no Post to move was dropped on another.
+ * @param onPutInSection a Collection, and the Section to put it in, which is not the one it is in.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -127,6 +132,7 @@ fun CollectionsScreen(
     onCollapse: (Section, Boolean) -> Unit,
     onMoveAll: (Collection, Collection, Boolean) -> Unit,
     onNoPostsToMove: (Collection) -> Unit,
+    onPutInSection: (Collection, Section) -> Unit,
     bottomBar: @Composable () -> Unit,
 ) {
     var adding by remember { mutableStateOf(false) }
@@ -186,6 +192,7 @@ fun CollectionsScreen(
             onDrop = { dropped, on ->
                 if (dropped.postCount == 0) onNoPostsToMove(dropped.collection) else move = dropped.collection.id to on.id
             },
+            onDropOnSection = { dropped, on -> onPutInSection(dropped.collection, on) },
             modifier = Modifier.fillMaxSize().padding(padding),
         )
     }
@@ -248,10 +255,12 @@ fun CollectionsScreen(
 /**
  * The grid of covers, laid out as [layout], with a header above each Section's. A long-press lifts a Collection's
  * cover, which then follows the finger; the grid scrolls while it is held near the top or bottom edge, and the
- * cover under the finger is highlighted.
+ * cover or the Section's header under the finger is highlighted, unless it is the header of the Section the
+ * Collection is in.
  *
  * @param collections every Collection, whichever Section it is in.
  * @param onDrop the Collection whose cover was dropped, and the one it was dropped on.
+ * @param onDropOnSection the Collection whose cover was dropped, and the Section whose header it was dropped on.
  */
 @Composable
 private fun CoverGrid(
@@ -266,6 +275,7 @@ private fun CoverGrid(
     onRenameSection: (Section) -> Unit,
     onDeleteSection: (Section) -> Unit,
     onDrop: (CollectionWithCount, Collection) -> Unit,
+    onDropOnSection: (CollectionWithCount, Section) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val gridState = rememberLazyGridState()
@@ -273,12 +283,17 @@ private fun CoverGrid(
     val haptics = LocalHapticFeedback.current
     val density = LocalDensity.current
     val currentCollections by rememberUpdatedState(collections)
+    val currentLayout by rememberUpdatedState(layout)
     val currentOnDrop by rememberUpdatedState(onDrop)
-    // Where things are, in the window: the grid, and the covers of the Collections on screen, by Collection id.
+    val currentOnDropOnSection by rememberUpdatedState(onDropOnSection)
+    // Where things are, in the window: the grid, the covers of the Collections on screen, by Collection id, and
+    // the headers of the Sections on screen, by Section id.
     var viewport by remember { mutableStateOf(Rect.Zero) }
     val bounds = remember { mutableMapOf<Long, Rect>() }
+    val headerBounds = remember { mutableMapOf<Long, Rect>() }
     var lift by remember { mutableStateOf<Lift?>(null) }
     var targetId by remember { mutableStateOf<Long?>(null) }
+    var targetSectionId by remember { mutableStateOf<Long?>(null) }
     var returning by remember { mutableStateOf<Job?>(null) }
 
     fun coverAt(position: Offset, except: Long? = null): Long? {
@@ -286,13 +301,27 @@ private fun CoverGrid(
         return bounds.entries.firstOrNull { (id, cover) -> id != except && position in cover }?.key
     }
 
-    // The cover goes back to its place, whatever comes of the drop: the Posts only move once the dialog says so.
+    fun headerAt(position: Offset, except: Long?): Long? {
+        if (position !in viewport) return null
+        return headerBounds.entries.firstOrNull { (id, header) -> id != except && position in header }?.key
+    }
+
+    // Dropped on a cover or nowhere, the cover goes back to its place: the Posts only move once the dialog says so.
     fun release(dropped: Boolean) {
         val released = lift ?: return
         released.held = false
         targetId = null
+        targetSectionId = null
         val id = released.item.collection.id
-        val on = currentCollections.find { it.collection.id == coverAt(released.finger, except = id) }
+        val sectionId = headerAt(released.finger, except = released.item.collection.sectionId)
+        val section = currentLayout.sections.find { it.section.id == sectionId }?.section
+        if (dropped && section != null) {
+            // Its place is in that Section now: nowhere to go back to.
+            lift = null
+            currentOnDropOnSection(released.item, section)
+            return
+        }
+        val on =currentCollections.find { it.collection.id == coverAt(released.finger, except = id) }
         if (dropped && on != null) currentOnDrop(released.item, on.collection)
         returning = scope.launch {
             // Scrolled away meanwhile: nowhere on screen to go back to.
@@ -325,6 +354,7 @@ private fun CoverGrid(
             if (depth != 0f) gridState.scrollBy(depth * maxSpeed * seconds)
             // Every frame: scrolling changes what is under a finger that does not move.
             targetId = coverAt(held.finger, except = held.item.collection.id)
+            targetSectionId = headerAt(held.finger, except = held.item.collection.sectionId)
         }
     }
 
@@ -395,12 +425,18 @@ private fun CoverGrid(
             }
             layout.sections.forEach { (section, inSection) ->
                 item(key = "section-${section.id}", span = { GridItemSpan(maxLineSpan) }) {
+                    val id = section.id
+                    DisposableEffect(id) { onDispose { headerBounds.remove(id) } }
                     SectionHeader(
                         section,
                         collectionCount = inSection.size,
                         onToggle = { onCollapse(section, !section.collapsed) },
                         onRename = { onRenameSection(section) },
                         onDelete = { onDeleteSection(section) },
+                        modifier = Modifier.onGloballyPositioned {
+                            headerBounds[id] = Rect(it.positionInWindow(), it.size.toSize())
+                        },
+                        highlighted = targetSectionId == id,
                     )
                 }
                 if (!section.collapsed) items(inSection, key = { it.collection.id }) { cover(it) }
@@ -486,7 +522,8 @@ private suspend fun PointerInputScope.detectLiftAndDrag(
 
 /**
  * A Section's header, across the grid: its name, how many Collections are in it, and a chevron telling whether it
- * is collapsed. A tap is [onToggle]; a long-press opens a menu to rename or delete it.
+ * is collapsed. A tap is [onToggle]; a long-press opens a menu to rename or delete it. [highlighted] as the drop
+ * target.
  */
 @Composable
 private fun SectionHeader(
@@ -495,12 +532,25 @@ private fun SectionHeader(
     onToggle: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+    highlighted: Boolean = false,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    Box {
+    val highlight = MaterialTheme.colorScheme.primary
+    Box(modifier) {
         Row(
             Modifier
                 .fillMaxWidth()
+                .drawBehind {
+                    if (!highlighted) return@drawBehind
+                    // Wider than the header, into the grid's side padding, so that the name is not against its edge.
+                    val overhang = HEADER_HIGHLIGHT_OVERHANG.toPx()
+                    val topLeft = Offset(-overhang, 0f)
+                    val around = Size(size.width + 2 * overhang, size.height)
+                    val corner = CornerRadius(8.dp.toPx())
+                    drawRoundRect(highlight.copy(alpha = 0.12f), topLeft, around, corner)
+                    drawRoundRect(highlight, topLeft, around, corner, style = Stroke(3.dp.toPx()))
+                }
                 .clip(RoundedCornerShape(8.dp))
                 .combinedClickable(onClick = onToggle, onLongClick = { menuOpen = true })
                 .padding(vertical = 8.dp),
@@ -552,6 +602,9 @@ private fun SectionHeader(
         }
     }
 }
+
+// Less than the grid's side padding, which the highlight must fit in.
+private val HEADER_HIGHLIGHT_OVERHANG = 8.dp
 
 /** A cover card: the mosaic, then the name and how many Posts are behind it. [highlighted] as the drop target. */
 @Composable
@@ -636,6 +689,7 @@ private fun CollectionsScreenPreview() {
             onCollapse = { _, _ -> },
             onMoveAll = { _, _, _ -> },
             onNoPostsToMove = {},
+            onPutInSection = { _, _ -> },
             bottomBar = {},
         )
     }

@@ -59,6 +59,32 @@ abstract class CollectionDao {
     open suspend fun update(collection: Collection): Boolean = collection.name.isNotBlank() &&
         updateRow(collection.id, collection.name.trim(), collection.color, collection.note, collection.sectionId) == 1
 
+    // The subquery leaves the Collection without a Section if the Section is gone.
+    @Query(
+        "UPDATE collections SET sectionId = (SELECT id FROM sections WHERE id = :to) " +
+            "WHERE id = :id AND sectionId IS :from",
+    )
+    protected abstract suspend fun changeSection(id: Long, from: Long?, to: Long?)
+
+    /**
+     * Puts the Collection in the Section [sectionId], changing nothing else of it. Returns what [undoPutInSection]
+     * needs, or null, changing nothing, if it is in that Section already or either is gone.
+     */
+    @Transaction
+    open suspend fun putInSection(id: Long, sectionId: Long): SectionChange? {
+        val collection = get(id) ?: return null
+        if (collection.sectionId == sectionId || sectionStillThere(sectionId) == null) return null
+        changeSection(id, from = collection.sectionId, to = sectionId)
+        return SectionChange(id, from = collection.sectionId, to = sectionId)
+    }
+
+    /**
+     * Undoes [putInSection]: the Collection is back in the Section it was in, or in none if it had none or that
+     * Section is gone. A Collection put in another Section meanwhile stays there.
+     */
+    open suspend fun undoPutInSection(change: SectionChange) =
+        changeSection(change.collectionId, from = change.to, to = change.from)
+
     /** Deletes the Collection; its Posts go to To sort through the `ON DELETE SET NULL` reference (ADR-0010). */
     @Query("DELETE FROM collections WHERE id = :id")
     abstract suspend fun deleteKeepingPosts(id: Long)

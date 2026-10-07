@@ -82,6 +82,7 @@ Open a Post to put it here.</string>
     <string name="section_name">Name</string>
     <string name="section_name_taken">Another Section already has this name</string>
     <string name="section_deleted">Section %1$s deleted</string>
+    <string name="collection_moved_to_section">%1$s moved to %2$s</string>
     <string name="section_expanded">Expanded</string>
     <string name="section_collapsed">Collapsed</string>
     <string name="tags">Tags</string>

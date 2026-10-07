@@ -42,7 +42,7 @@ The author, plus possibly a few friends or family. Android only. Installed from 
 **Collections & Tags**
 - Create, rename, recolor (shared 12-color palette carried over from Socials Organizer), Collection Note.
 - Deleting a Collection asks: keep its Posts (to To sort) or delete them too (ADR-0010).
-- Sections: create, rename, delete (its Collections lose their Section, with Undo). A Collection is put in a Section, or in none, from its editor (ADR-0014).
+- Sections: create, rename, delete (its Collections lose their Section, with Undo). A Collection is put in a Section, or in none, from its editor, or in a Section by dragging its cover onto the Section's header, with Undo (ADR-0014).
 
 **Capture & Sync**
 - Share-in: share a post from Instagram to InstaSaved → lands in To sort, optionally tag it on the spot. Sharing a Deleted Post asks "You deleted this before. Add it back?" (ADR-0012).
