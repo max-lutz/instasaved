@@ -59,6 +59,7 @@ import com.maxlutz.instasaved.sync.DriveRest
 import com.maxlutz.instasaved.sync.Sync
 import com.maxlutz.instasaved.sync.SyncProblem
 import com.maxlutz.instasaved.sync.SyncStatusText
+import com.maxlutz.instasaved.sync.SyncWorker
 import com.maxlutz.instasaved.tags.TagChange
 import com.maxlutz.instasaved.tags.TagPickerDialog
 import com.maxlutz.instasaved.tags.Tagging
@@ -133,6 +134,7 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) handleShare(intent)
         ThumbnailWorker.scheduleRetries(this)
         PurgeWorker.scheduleDaily(this)
+        SyncWorker.scheduleDaily(this)
         // Also on opening the app, so that Recently deleted never shows a Post past its 30 days.
         lifecycleScope.launch { recentlyDeleted.purgeExpired() }
         setContent {

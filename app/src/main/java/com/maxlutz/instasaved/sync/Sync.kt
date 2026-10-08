@@ -87,7 +87,12 @@ class Sync(
         }
         if (summary.new > 0) queueThumbnails()
         val problem = failedDates.takeIf { it.isNotEmpty() }?.let(SyncProblem::ExportsFailed)
-        status.synced(at = now(), newestExport = dao.newestExportDate()?.let(LocalDate::parse), problem = problem)
+        status.synced(
+            at = now(),
+            newestExport = dao.newestExportDate()?.let(LocalDate::parse),
+            newestInDrive = exports.maxOf { it.date },
+            problem = problem,
+        )
         return Report(summary, problem)
     }
 

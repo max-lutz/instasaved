@@ -169,6 +169,8 @@ Open a Post to put it here.</string>
         <item quantity="one">The Export from %1$s could not be read</item>
         <item quantity="other">The Exports from %1$s could not be read</item>
     </plurals>
+    <string name="sync_stale">No new Export for more than %1$d days: the Instagram schedule may have stopped</string>
+    <string name="sync_stale_short">No recent Export</string>
     <string name="sync_nothing_new">Nothing new</string>
     <plurals name="sync_new">
         <item quantity="one">%1$d new Post</item>
