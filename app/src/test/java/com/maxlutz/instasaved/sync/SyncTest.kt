@@ -270,7 +270,20 @@ class SyncTest {
 
         sync.run(drive)
 
-        assertEquals(SyncStatus(syncedAt = 42, newestExport = LocalDate.of(2026, 10, 2)), status.status.value)
+        val newest = LocalDate.of(2026, 10, 2)
+        assertEquals(SyncStatus(syncedAt = 42, newestExport = newest, newestInDrive = newest), status.status.value)
+    }
+
+    // An Export that could not be read is still the schedule at work: the stale warning goes by the newest in Drive.
+    @Test
+    fun recordsTheNewestExportInDriveEvenIfItCouldNotBeApplied() = runTest {
+        drive.add("2026-10-01", savedPosts(entry("A")))
+        drive.add("2026-10-06", "not json")
+
+        sync.run(drive)
+
+        assertEquals(LocalDate.of(2026, 10, 1), status.status.value.newestExport)
+        assertEquals(LocalDate.of(2026, 10, 6), status.status.value.newestInDrive)
     }
 
     @Test
@@ -292,7 +305,8 @@ class SyncTest {
 
         drive.listing = IOException("offline")
         assertEquals(SyncProblem.Offline, sync.run(drive).problem)
-        assertEquals(SyncStatus(10, LocalDate.of(2026, 10, 1), SyncProblem.Offline), status.status.value)
+        val day = LocalDate.of(2026, 10, 1)
+        assertEquals(SyncStatus(10, day, day, SyncProblem.Offline), status.status.value)
 
         drive.listing = DriveAccessException("401")
         assertEquals(SyncProblem.AccessRefused, sync.run(drive).problem)
@@ -300,7 +314,7 @@ class SyncTest {
 
         drive.listing = null
         sync.run(drive)
-        assertEquals(SyncStatus(20, LocalDate.of(2026, 10, 1)), status.status.value)
+        assertEquals(SyncStatus(20, day, day), status.status.value)
     }
 
     @Test

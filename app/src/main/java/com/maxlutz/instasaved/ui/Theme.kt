@@ -1,11 +1,13 @@
 package com.maxlutz.instasaved.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 
 // The colors of the agreed UI mockup (docs/prototype/ui-mockup.html): Instagram's black on white, or white on black.
 private val Light = lightColorScheme(
@@ -57,6 +59,10 @@ private val Dark = darkColorScheme(
     inverseOnSurface = Color.White,
     inversePrimary = Color(0xFF7CC4FF),
 )
+
+/** The color of a warning that is not an error, like the stale-Export one. */
+val ColorScheme.warning: Color
+    get() = if (surface.luminance() < 0.5f) Color(0xFFFFCF7A) else Color(0xFF8A5A00)
 
 /** The app's look, following the phone's light or dark setting. */
 @Composable

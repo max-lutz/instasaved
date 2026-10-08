@@ -14,14 +14,16 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import com.maxlutz.instasaved.R
+import com.maxlutz.instasaved.ui.warning
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 /**
- * The sync status line: "Synced 2 hours ago · Export from 1 Oct", then what went wrong, if anything did.
+ * The sync status line: "Synced 2 hours ago · Export from 1 Oct", then what went wrong, if anything did, and the
+ * stale warning when the Exports stopped coming.
  *
- * @param short only when the last Sync went, or that it failed: for the home's top bar.
+ * @param short only when the last Sync went, that it failed, or that the Exports are stale: for the home's top bar.
  */
 @Composable
 fun SyncStatusText(status: SyncStatus, running: Boolean, modifier: Modifier = Modifier, short: Boolean = false) {
@@ -34,6 +36,7 @@ fun SyncStatusText(status: SyncStatus, running: Boolean, modifier: Modifier = Mo
         }
     }
     val problem = status.problem
+    val stale = status.isStale()
     val synced = status.syncedAt?.let {
         if (now - it < DateUtils.MINUTE_IN_MILLIS) {
             stringResource(R.string.just_now)
@@ -44,17 +47,24 @@ fun SyncStatusText(status: SyncStatus, running: Boolean, modifier: Modifier = Mo
     val text = when {
         running -> stringResource(R.string.syncing)
         short && problem != null -> stringResource(R.string.sync_failed)
+        short && stale -> stringResource(R.string.sync_stale_short)
         short -> synced?.let { stringResource(R.string.synced, it) } ?: stringResource(R.string.not_synced_yet)
         else -> listOfNotNull(
             synced?.let { stringResource(R.string.synced, it) } ?: stringResource(R.string.not_synced_yet),
             status.newestExport?.let { stringResource(R.string.export_from, dayOf(it)) },
             problem?.let { describe(it) },
+            if (stale) stringResource(R.string.sync_stale, SyncStatus.STALE_AFTER_DAYS) else null,
         ).joinToString(" · ")
     }
     Text(
         text,
         modifier,
-        color = if (problem != null && !running) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = when {
+            running -> MaterialTheme.colorScheme.onSurfaceVariant
+            problem != null -> MaterialTheme.colorScheme.error
+            stale -> MaterialTheme.colorScheme.warning
+            else -> MaterialTheme.colorScheme.onSurfaceVariant
+        },
         style = MaterialTheme.typography.bodySmall,
         maxLines = if (short) 1 else Int.MAX_VALUE,
         overflow = TextOverflow.Ellipsis,
