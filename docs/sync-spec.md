@@ -4,7 +4,7 @@ How an Export becomes changes to the app's Posts. Terms are defined in `CONTEXT.
 
 ## Pipeline
 
-1. **Find** the Export folders in Google Drive (read-only access, see ADR-0004) that have not been applied yet, by Drive file id.
+1. **Find** the Export folders in Google Drive (read-only access, see ADR-0004) that have not been applied yet, by Drive file id. A folder is an Export by its name (see Export file format), wherever it sits in Drive.
 
 Then, for each of them, oldest first (R7):
 
@@ -17,7 +17,9 @@ And once for the whole Sync:
 5. **Record** the sync status (time, date of the newest Export applied) and the Sync Summary, totalled over the Exports applied.
 6. **Queue** Thumbnail downloads for newly added Posts (best-effort, outside the transaction).
 
-An Export that fails (download or parse error) is not recorded as applied: the error shows in the sync status, the other Exports are still applied, and the next Sync tries it again.
+An Export that fails (download or parse error) is not recorded as applied: the error shows in the sync status, the other Exports are still applied, and the next Sync tries it again. A folder without a saved-posts JSON fails the same way, rather than counting as an Export with no posts: Meta may still be writing it.
+
+Restoring a Backup forgets which Exports were applied, so the next Sync applies them all again: those applied after the Backup was taken bring back their posts, and the rules leave everything else as it is (R2, R3, R6).
 
 ## Normalization
 
@@ -41,7 +43,7 @@ Let `E` be the set of shortcodes in the Export.
 1. If one or more match an existing app Collection by name, take the first of those alphabetically.
 2. Otherwise take the first Instagram Collection alphabetically and **create an app Collection with that name** (next palette color, empty note).
 
-An Export after the first carries no Instagram Collections, so its new Posts land in To sort; Placement does its work on a complete Export.
+An Export after the first carries only the Instagram Collections created since the previous Export (see Export file format), so most of its new Posts land in To sort; Placement does its work on a complete Export.
 
 Alphabetical order makes the result independent of how Meta orders the Export. For the same reason, "existing" in step 1 means existing before this Sync: a Collection created earlier in the same Sync is reused by step 2, but does not attract a post away from its alphabetically first Instagram Collection.
 
@@ -62,12 +64,13 @@ Alphabetical order makes the result independent of how Meta orders the Export. F
 
 **R6 — Idempotent.** Applying the same Export twice produces no changes the second time.
 
-**R7 — Every Export, once, oldest first.** Each Export in Drive is applied exactly once: skipping one would lose the posts saved that day. Exports are never deleted (the app has read-only access). An Export with no posts changes nothing and is not an error.
+**R7 — Every Export, once, oldest first.** Each Export in Drive is applied exactly once: skipping one would lose the posts saved that day. Oldest is by the day in the folder's name, then by when Drive got the folder. Exports are never deleted (the app has read-only access). An Export with no posts changes nothing and is not an error.
 
 ## Sync status and Summary
 
-- Status line: "Synced 2 h ago · Export from 1 Oct". Error state when the last sync failed (Drive sign-in expired, no Export found, parse error), with the reason.
-- **Stale warning** when the newest Export in Drive is more than 3 days old — the Instagram schedule may have stopped.
+- Status line: "Synced 2 h ago · Export from 1 Oct", "Synced" being the last Sync that went through Drive's Exports. Error state when the last sync failed (Drive access not granted or refused, Drive unreachable, no Export found, an Export that could not be read), with the reason.
+- **Stale warning** when the newest Export in Drive is more than 3 days old — the Instagram schedule may have stopped. "Newest in Drive" is as of the last Sync that went through the Exports, and counts an Export that could not be read: its folder still shows the schedule at work.
+- **Daily background Sync**: once a day, when the phone has a network. It never opens Google's sign-in: if Google does not hand a token without asking, it does nothing until Drive has been connected by a "Sync now", and after that reports the lost access as an error state. When Drive cannot be reached it tries again sooner than the next day.
 - **Sync Summary** (dismissable, only shown when something changed): new · captions updated.
 - No system notification.
 
@@ -135,4 +138,18 @@ What the parser does with it:
 | 10-02 | 1 | 10-02 | 0 | no | English |
 | 10-03 | 12 | 10-03 | 0 | no | English |
 
-An incremental Export carries no collections file even when its posts were saved into Instagram Collections (some of the 10-03 posts were). **Open:** whether selecting more categories than "Saved" in the schedule brings Instagram Collections into the daily Exports.
+A second schedule, started on 2026-10-03 with more categories than "Saved" (posts, stories, profile photos, reposts), behaves the same way. Its Exports hold extra files and media folders next to `saved/`, which Sync does not read:
+
+| Export | Posts | Saved between | Already in an earlier Export | `saved_collections.json` | Labels |
+|---|---|---|---|---|---|
+| 10-03 | 884 | 2020 → 10-03 | — | 67 collections, 846 posts in one or more | French |
+| 10-04 | 9 | 10-04 | 0 | no | English |
+| 10-05 | 3 | 10-05 | 0 | 2 collections, 1 post each | English |
+| 10-06 | 10 | 10-05 → 10-06 | 0 | 1 collection, 1 post (the entry alone, not in a list) | English |
+
+**An incremental Export lists only the Instagram Collections created since the previous Export**, each with the posts saved into it in that window. A post saved into an Instagram Collection that already existed comes without it. What shows this:
+- None of the three collections in the 10-05 and 10-06 Exports is in the 10-03 snapshot, and each one's `timestamp` is the save time of its only post.
+- A collection's `timestamp` is its creation time, not its last update: in the 10-03 snapshot the newest collection dates from 10-01, yet all 12 posts saved on 10-03 are in a collection.
+- The extra categories change nothing: the first schedule's 10-03 Export had no collections file although its posts were saved into (existing) Instagram Collections.
+
+So after the first Export, Placement only ever sees brand-new Instagram Collections; every other new Post lands in To sort.

@@ -243,4 +243,28 @@ class MigrationTest {
         assertEquals(food, after?.sectionId)
         assertEquals(listOf("A"), inCollection)
     }
+
+    @Test
+    fun migrates9To10WithNoExportAppliedAndNoInstagramCollectionsKnown() = runTest {
+        createDatabase(
+            9,
+            seed = listOf(
+                "INSERT INTO posts (shortcode, url, addedAt, modifiedAt, seenInExport, title, titleHandEdited, " +
+                    "description, descriptionHandEdited, postNote, ownerUsername, ownerName, thumbnailFailures) " +
+                    "VALUES ('A', 'https://www.instagram.com/p/A/', 7, 8, 1, 'Hi', 0, 'Hi', 0, '', '', '', 0)",
+            ),
+        )
+
+        val db = openMigrated()
+        val before = db.postDao().get("A")
+        val applied = db.syncDao().appliedExportIds()
+        db.syncDao().apply(AppliedExport("E", "instagram-someone-2026-10-01-x", "2026-10-01", 9), emptyList())
+        val after = db.syncDao().appliedExportIds()
+        db.close()
+
+        assertEquals(emptyList<String>(), before?.instagramCollections)
+        assertEquals(7L to 8L, before?.addedAt to before?.modifiedAt)
+        assertEquals(emptyList<String>(), applied)
+        assertEquals(listOf("E"), after)
+    }
 }

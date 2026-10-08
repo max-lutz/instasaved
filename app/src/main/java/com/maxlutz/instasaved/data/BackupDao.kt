@@ -69,6 +69,9 @@ abstract class BackupDao {
     @Query("DELETE FROM deleted_post_traces")
     protected abstract suspend fun clearDeletedPostTraces()
 
+    @Query("DELETE FROM applied_exports")
+    protected abstract suspend fun clearAppliedExports()
+
     @Insert
     protected abstract suspend fun insertPosts(posts: List<Post>)
 
@@ -91,7 +94,9 @@ abstract class BackupDao {
     protected abstract suspend fun insertDeletedPostTraces(traces: List<DeletedPostTrace>)
 
     /**
-     * Wipe-and-replace: everything the app holds goes, and [backup] takes its place, ids included. All or nothing:
+     * Wipe-and-replace: everything the app holds goes, and [backup] takes its place, ids included. The record of the
+     * Exports applied goes too, so that the next Sync applies every Export again: those applied after the Backup was
+     * taken bring back the Posts they added, and the rules leave the others as they are. All or nothing:
      * a Backup that does not hold together (a Post in a Collection it does not have, two Tags of one name) throws
      * and leaves the app's data as it was.
      */
@@ -104,6 +109,7 @@ abstract class BackupDao {
         clearSections()
         clearCollectionDeletions()
         clearDeletedPostTraces()
+        clearAppliedExports()
         insertSections(backup.sections)
         insertCollections(backup.collections)
         insertCollectionDeletions(backup.collectionDeletions)

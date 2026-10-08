@@ -24,18 +24,25 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.maxlutz.instasaved.R
+import com.maxlutz.instasaved.sync.SyncStatus
+import com.maxlutz.instasaved.sync.SyncStatusText
 import com.maxlutz.instasaved.ui.InstaSavedTheme
 import com.maxlutz.instasaved.ui.ScreenTitle
+import java.time.LocalDate
 
 /**
- * Everything that is not browsing Posts: Recently deleted and the Tags, then the manual backup file.
+ * Everything that is not browsing Posts: Sync now with the sync status, Recently deleted and the Tags, then the
+ * manual backup file.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MoreScreen(
+    syncStatus: SyncStatus,
+    syncing: Boolean,
     recentlyDeletedCount: Int,
     tagCount: Int,
     snackbar: SnackbarHostState,
+    onSyncNow: () -> Unit,
     onOpenRecentlyDeleted: () -> Unit,
     onOpenTags: () -> Unit,
     onWriteBackup: () -> Unit,
@@ -48,6 +55,14 @@ fun MoreScreen(
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
+            Column(
+                Modifier.fillMaxWidth().clickable(enabled = !syncing, onClick = onSyncNow)
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+            ) {
+                Text(stringResource(R.string.sync_now), style = MaterialTheme.typography.bodyLarge)
+                SyncStatusText(syncStatus, syncing)
+            }
+            HorizontalDivider()
             MoreRow(stringResource(R.string.recently_deleted), onOpenRecentlyDeleted, count = recentlyDeletedCount)
             MoreRow(stringResource(R.string.tags), onOpenTags, count = tagCount)
             HorizontalDivider()
@@ -74,9 +89,12 @@ private fun MoreRow(label: String, onClick: () -> Unit, count: Int? = null) {
 private fun MoreScreenPreview() {
     InstaSavedTheme {
         MoreScreen(
+            syncStatus = SyncStatus(syncedAt = System.currentTimeMillis() - 2 * 3_600_000, LocalDate.of(2026, 10, 1)),
+            syncing = false,
             recentlyDeletedCount = 3,
             tagCount = 4,
             snackbar = remember { SnackbarHostState() },
+            onSyncNow = {},
             onOpenRecentlyDeleted = {},
             onOpenTags = {},
             onWriteBackup = {},

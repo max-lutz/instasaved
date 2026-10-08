@@ -100,6 +100,7 @@ fun Backup.toJson(createdAt: Long): String {
                         put("postNote", post.postNote)
                         put("ownerUsername", post.ownerUsername)
                         put("ownerName", post.ownerName)
+                        putJsonArray("instagramCollections") { post.instagramCollections.forEach { add(JsonPrimitive(it)) } }
                         post.collectionId?.let { put("collectionId", it) }
                         put("tagIds", buildJsonArray { tagIdsByPost[post.id].orEmpty().forEach { add(JsonPrimitive(it)) } })
                         post.deletedAt?.let { put("deletedAt", it) }
@@ -166,6 +167,8 @@ fun parseBackup(json: String): Backup {
             deletionId = post.longOrNull("deletionId"),
             ownerUsername = post.string("ownerUsername"),
             ownerName = post.string("ownerName"),
+            // Absent from the files of apps before Sync.
+            instagramCollections = post.optionalArray("instagramCollections").map { it.asString("instagramCollections") },
         )
     }
     return Backup(
@@ -205,6 +208,8 @@ private fun malformed(key: String): Nothing = throw BackupFormatException("The b
 
 private fun JsonObject.array(key: String): JsonArray = this[key] as? JsonArray ?: malformed(key)
 
+private fun JsonObject.optionalArray(key: String): JsonArray = if (this[key] == null) JsonArray(emptyList()) else array(key)
+
 private fun JsonObject.objects(key: String): List<JsonObject> = array(key).map { it as? JsonObject ?: malformed(key) }
 
 private fun JsonObject.primitive(key: String): JsonPrimitive =
@@ -222,6 +227,9 @@ private fun JsonObject.int(key: String): Int =
 
 private fun JsonObject.boolean(key: String): Boolean =
     primitive(key).takeIf { !it.isString }?.booleanOrNull ?: malformed(key)
+
+private fun JsonElement.asString(key: String): String =
+    (this as? JsonPrimitive)?.takeIf { it.isString }?.content ?: malformed(key)
 
 private fun JsonElement.asLong(key: String): Long =
     (this as? JsonPrimitive)?.takeIf { !it.isString }?.longOrNull ?: malformed(key)

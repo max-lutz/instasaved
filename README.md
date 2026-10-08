@@ -36,7 +36,7 @@ Instagram → Accounts Center → Your information and permissions → Export yo
 
 ### 3. Install
 
-Add this repo's GitHub Releases to [Obtainium](https://github.com/ImranR98/Obtainium), or download the APK directly. On first launch, connect Google Drive and click through "Google hasn't verified this app" (Advanced → continue).
+Add this repo's GitHub Releases to [Obtainium](https://github.com/ImranR98/Obtainium), or download the APK directly. Then **More → Sync now**: the first time, pick your Google account and click through "Google hasn't verified this app" (Advanced → continue).
 
 ## Build
 

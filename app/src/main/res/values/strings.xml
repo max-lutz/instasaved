@@ -154,4 +154,30 @@ Open a Post to put it here.</string>
     <string name="backup_not_a_backup">Not an InstaSaved backup file. Nothing was changed.</string>
     <string name="backup_from_newer_app">This Backup comes from a newer version of the app. Update the app to restore it.</string>
     <string name="backup_read_failed">Could not read the file. Nothing was changed.</string>
+    <string name="sync_now">Sync now</string>
+    <string name="syncing">Syncing…</string>
+    <string name="not_synced_yet">Not synced yet</string>
+    <string name="just_now">just now</string>
+    <string name="synced">Synced %1$s</string>
+    <string name="export_from">Export from %1$s</string>
+    <string name="sync_failed">Sync failed</string>
+    <string name="sync_access_not_granted">Google Drive access was not granted</string>
+    <string name="sync_access_refused">Google Drive refused access. Sync again to sign in.</string>
+    <string name="sync_offline">Google Drive could not be reached</string>
+    <string name="sync_no_export">No Instagram Export in Google Drive</string>
+    <plurals name="sync_exports_failed">
+        <item quantity="one">The Export from %1$s could not be read</item>
+        <item quantity="other">The Exports from %1$s could not be read</item>
+    </plurals>
+    <string name="sync_stale">No new Export for more than %1$d days: the Instagram schedule may have stopped</string>
+    <string name="sync_stale_short">No recent Export</string>
+    <string name="sync_nothing_new">Nothing new</string>
+    <plurals name="sync_new">
+        <item quantity="one">%1$d new Post</item>
+        <item quantity="other">%1$d new Posts</item>
+    </plurals>
+    <plurals name="sync_captions_updated">
+        <item quantity="one">%1$d caption updated</item>
+        <item quantity="other">%1$d captions updated</item>
+    </plurals>
 </resources>

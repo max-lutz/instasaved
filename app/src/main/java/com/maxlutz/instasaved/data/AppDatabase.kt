@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
@@ -16,9 +17,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Tag::class,
         PostTag::class,
         DeletedPostTrace::class,
+        AppliedExport::class,
     ],
-    version = 9,
+    version = 10,
 )
+@TypeConverters(NameListConverter::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun postDao(): PostDao
 
@@ -32,6 +35,8 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun backupDao(): BackupDao
 
+    abstract fun syncDao(): SyncDao
+
     companion object {
         val MIGRATIONS = arrayOf(
             MIGRATION_1_2,
@@ -42,6 +47,7 @@ abstract class AppDatabase : RoomDatabase() {
             MIGRATION_6_7,
             MIGRATION_7_8,
             MIGRATION_8_9,
+            MIGRATION_9_10,
         )
 
         fun open(context: Context): AppDatabase =
@@ -168,5 +174,16 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         )
         db.execSQL("CREATE INDEX `index_collections_sectionId` ON `collections` (`sectionId`)")
         db.execSQL("ALTER TABLE `collection_deletions` ADD COLUMN `collectionSectionId` INTEGER")
+    }
+}
+
+/** Adds the Exports Sync has applied (none yet) and each Post's Instagram Collections, unknown so far. */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE `applied_exports` (`driveFileId` TEXT NOT NULL, `name` TEXT NOT NULL, " +
+                "`exportDate` TEXT NOT NULL, `appliedAt` INTEGER NOT NULL, PRIMARY KEY(`driveFileId`))",
+        )
+        db.execSQL("ALTER TABLE `posts` ADD COLUMN `instagramCollections` TEXT NOT NULL DEFAULT ''")
     }
 }

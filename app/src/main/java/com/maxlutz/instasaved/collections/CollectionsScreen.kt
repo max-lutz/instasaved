@@ -113,6 +113,7 @@ import java.io.File
  *   first along the way.
  * @param onNoPostsToMove a Collection with no Post to move was dropped on another.
  * @param onPutInSection a Collection, and the Section to put it in, which is not the one it is in.
+ * @param syncStatus the short sync status, in the top bar.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -134,6 +135,7 @@ fun CollectionsScreen(
     onNoPostsToMove: (Collection) -> Unit,
     onPutInSection: (Collection, Section) -> Unit,
     bottomBar: @Composable () -> Unit,
+    syncStatus: @Composable () -> Unit = {},
 ) {
     var adding by remember { mutableStateOf(false) }
     var creating by rememberSaveable { mutableStateOf(false) }
@@ -153,6 +155,7 @@ fun CollectionsScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.saved), style = ScreenTitle) },
                 actions = {
+                    Box(Modifier.padding(end = 10.dp)) { syncStatus() }
                     Box(Modifier.padding(end = 14.dp)) {
                         SoftButton(stringResource(R.string.add_new), onClick = { adding = true })
                         DropdownMenu(expanded = adding, onDismissRequest = { adding = false }) {
