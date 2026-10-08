@@ -34,6 +34,8 @@ data class CollectionWithCount(
     @Embedded val collection: Collection,
     /** Posts in the Collection, Recently deleted ones excluded. */
     val postCount: Int,
+    /** How many of those are Bare Posts. */
+    val bareCount: Int = 0,
 )
 
 /**

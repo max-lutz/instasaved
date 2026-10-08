@@ -133,6 +133,115 @@ class CollectionsTest {
         )
     }
 
+    // Bare Posts
+
+    private suspend fun addBare(shortcode: String, collectionId: Long? = null): Long =
+        addPost(shortcode).also { if (collectionId != null) posts.setCollection(it, collectionId, at = 1L) }
+
+    private suspend fun setNote(shortcode: String, note: String) =
+        posts.updateText(checkNotNull(posts.get(shortcode)).copy(postNote = note), at = 2L)
+
+    private suspend fun bareCounts() =
+        collections.observeAll().first().associate { it.collection.name to it.bareCount }
+
+    private suspend fun bareCount() = posts.observeBareCount().first()
+
+    @Test
+    fun aPostWithNoTagAndNoPostNoteIsBare() = runTest {
+        val recipes = create("Recipes")
+        create("Travel")
+        listOf("A", "B", "C").forEach { addBare(it, recipes) }
+
+        assertEquals(mapOf("Recipes" to 3, "Travel" to 0), bareCounts())
+        assertEquals(3, bareCount())
+    }
+
+    @Test
+    fun aPostWithATagIsNotBare() = runTest {
+        val recipes = create("Recipes")
+        val a = addBare("A", recipes)
+        addBare("B", recipes)
+        val vegan = checkNotNull(db.tagDao().create("Vegan", PALETTE[0]))
+        val quick = checkNotNull(db.tagDao().create("Quick", PALETTE[1]))
+        db.tagDao().addToPost(a, vegan, at = 2L)
+        db.tagDao().addToPost(a, quick, at = 2L)
+
+        assertEquals(mapOf("Recipes" to 1), bareCounts())
+        assertEquals(1, bareCount())
+        assertEquals(2, collections.observeAll().first().single().postCount)
+    }
+
+    @Test
+    fun aPostWithAPostNoteIsNotBareUnlessTheNoteIsBlank() = runTest {
+        val recipes = create("Recipes")
+        listOf("A", "B", "C").forEach { addBare(it, recipes) }
+        setNote("A", "Try on Sunday")
+        setNote("B", " \n\t ")
+
+        assertEquals(mapOf("Recipes" to 2), bareCounts())
+        assertEquals(2, bareCount())
+    }
+
+    @Test
+    fun aHandEditedTitleOrDescriptionLeavesAPostBare() = runTest {
+        val recipes = create("Recipes")
+        addBare("A", recipes)
+        val edited = checkNotNull(posts.get("A")).copy(
+            title = "Ramen",
+            titleHandEdited = true,
+            description = "The one from Kyoto",
+            descriptionHandEdited = true,
+        )
+        posts.updateText(edited, at = 2L)
+
+        assertEquals(mapOf("Recipes" to 1), bareCounts())
+        assertEquals(1, bareCount())
+    }
+
+    @Test
+    fun recentlyDeletedPostsAreNotCountedAsBare() = runTest {
+        val recipes = create("Recipes")
+        addBare("A", recipes)
+        posts.delete(addBare("B", recipes), at = 9L)
+        posts.delete(addBare("C"), at = 9L)
+
+        assertEquals(mapOf("Recipes" to 1), bareCounts())
+        assertEquals(1, bareCount())
+    }
+
+    @Test
+    fun theBareCountOfAllPostsIncludesToSort() = runTest {
+        val recipes = create("Recipes")
+        addBare("A", recipes)
+        addBare("B")
+        addBare("C")
+        setNote("C", "Gift idea")
+
+        assertEquals(mapOf("Recipes" to 1), bareCounts())
+        assertEquals(2, bareCount())
+    }
+
+    @Test
+    fun theBareCountFollowsTagsAndPostNotesAddedAndRemoved() = runTest {
+        val recipes = create("Recipes")
+        val a = addBare("A", recipes)
+        val vegan = checkNotNull(db.tagDao().create("Vegan", PALETTE[0]))
+
+        db.tagDao().addToPost(a, vegan, at = 2L)
+        assertEquals(mapOf("Recipes" to 0), bareCounts())
+        assertEquals(0, bareCount())
+
+        db.tagDao().removeFromPost(a, vegan, at = 3L)
+        assertEquals(mapOf("Recipes" to 1), bareCounts())
+
+        setNote("A", "Try on Sunday")
+        assertEquals(mapOf("Recipes" to 0), bareCounts())
+
+        setNote("A", "")
+        assertEquals(mapOf("Recipes" to 1), bareCounts())
+        assertEquals(1, bareCount())
+    }
+
     // Assigning
 
     @Test

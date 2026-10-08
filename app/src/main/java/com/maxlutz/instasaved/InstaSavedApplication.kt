@@ -4,6 +4,7 @@ import android.app.Application
 import com.maxlutz.instasaved.backup.Backups
 import com.maxlutz.instasaved.data.AppDatabase
 import com.maxlutz.instasaved.deleted.RecentlyDeleted
+import com.maxlutz.instasaved.more.Settings
 import com.maxlutz.instasaved.sync.Sync
 import com.maxlutz.instasaved.sync.SyncStatusStore
 import com.maxlutz.instasaved.thumbnails.InstagramThumbnails
@@ -25,6 +26,8 @@ class InstaSavedApplication : Application() {
     val backups: Backups by lazy { Backups(database.backupDao(), thumbnailStore) }
 
     val syncStatus: SyncStatusStore by lazy { SyncStatusStore(getSharedPreferences("sync", MODE_PRIVATE)) }
+
+    val settings: Settings by lazy { Settings(getSharedPreferences("settings", MODE_PRIVATE)) }
 
     val sync: Sync by lazy {
         Sync(database.syncDao(), syncStatus, queueThumbnails = { ThumbnailWorker.downloadNow(this) })
