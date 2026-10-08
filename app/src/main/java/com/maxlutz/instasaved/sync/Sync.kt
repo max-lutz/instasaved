@@ -14,7 +14,8 @@ import java.time.LocalDate
 
 /**
  * Sync's pipeline (`docs/sync-spec.md`): finds the Exports in Drive not applied yet and applies each, oldest first,
- * in a transaction of its own, then records the sync status and queues the Thumbnails of the Posts it added.
+ * in a transaction of its own, then records the sync status and the Sync Summary, and queues the Thumbnails of the
+ * Posts it added.
  *
  * @param queueThumbnails starts downloading the Thumbnails the app is missing, once the Exports are applied.
  */
@@ -78,6 +79,7 @@ class Sync(
             } catch (_: DriveAccessException) {
                 // The next Exports would be refused too; those applied so far stay applied.
                 if (summary.new > 0) queueThumbnails()
+                status.summarize(summary)
                 return failed(SyncProblem.AccessRefused)
             } catch (_: IOException) {
                 failedDates += export.date
@@ -93,6 +95,7 @@ class Sync(
             newestInDrive = exports.maxOf { it.date },
             problem = problem,
         )
+        status.summarize(summary)
         return Report(summary, problem)
     }
 

@@ -114,6 +114,7 @@ import java.io.File
  * @param onNoPostsToMove a Collection with no Post to move was dropped on another.
  * @param onPutInSection a Collection, and the Section to put it in, which is not the one it is in.
  * @param syncStatus the short sync status, in the top bar.
+ * @param syncSummary the Sync Summary, above the covers, while there is one to show.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -136,6 +137,7 @@ fun CollectionsScreen(
     onPutInSection: (Collection, Section) -> Unit,
     bottomBar: @Composable () -> Unit,
     syncStatus: @Composable () -> Unit = {},
+    syncSummary: @Composable () -> Unit = {},
 ) {
     var adding by remember { mutableStateOf(false) }
     var creating by rememberSaveable { mutableStateOf(false) }
@@ -181,23 +183,30 @@ fun CollectionsScreen(
         bottomBar = bottomBar,
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        CoverGrid(
-            allCount,
-            allCover,
-            collections,
-            layout,
-            coverOf,
-            onOpenAll,
-            onOpenCollection,
-            onCollapse = onCollapse,
-            onRenameSection = { renamingId = it.id },
-            onDeleteSection = onDeleteSection,
-            onDrop = { dropped, on ->
-                if (dropped.postCount == 0) onNoPostsToMove(dropped.collection) else move = dropped.collection.id to on.id
-            },
-            onDropOnSection = { dropped, on -> onPutInSection(dropped.collection, on) },
-            modifier = Modifier.fillMaxSize().padding(padding),
-        )
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            syncSummary()
+            CoverGrid(
+                allCount,
+                allCover,
+                collections,
+                layout,
+                coverOf,
+                onOpenAll,
+                onOpenCollection,
+                onCollapse = onCollapse,
+                onRenameSection = { renamingId = it.id },
+                onDeleteSection = onDeleteSection,
+                onDrop = { dropped, on ->
+                    if (dropped.postCount == 0) {
+                        onNoPostsToMove(dropped.collection)
+                    } else {
+                        move = dropped.collection.id to on.id
+                    }
+                },
+                onDropOnSection = { dropped, on -> onPutInSection(dropped.collection, on) },
+                modifier = Modifier.fillMaxWidth().weight(1f),
+            )
+        }
     }
 
     if (creating) {

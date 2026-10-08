@@ -77,7 +77,7 @@ Instagram's official embedded player for a Post, shown inside the app to watch v
 _Avoid_: Player, viewer
 
 **Sync Summary**:
-The dismissable in-app recap of the last Sync ("12 new · 2 no longer saved"), shown alongside the sync status ("Synced 2 h ago").
+The dismissable in-app recap of the last Sync that changed something ("12 new · 2 captions updated"), shown alongside the sync status ("Synced 2 h ago").
 _Avoid_: Notification, report
 
 **Backup**:

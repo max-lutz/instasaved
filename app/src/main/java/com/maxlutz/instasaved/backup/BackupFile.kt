@@ -101,6 +101,7 @@ fun Backup.toJson(createdAt: Long): String {
                         put("ownerUsername", post.ownerUsername)
                         put("ownerName", post.ownerName)
                         putJsonArray("instagramCollections") { post.instagramCollections.forEach { add(JsonPrimitive(it)) } }
+                        put("isNew", post.isNew)
                         post.collectionId?.let { put("collectionId", it) }
                         put("tagIds", buildJsonArray { tagIdsByPost[post.id].orEmpty().forEach { add(JsonPrimitive(it)) } })
                         post.deletedAt?.let { put("deletedAt", it) }
@@ -169,6 +170,7 @@ fun parseBackup(json: String): Backup {
             ownerName = post.string("ownerName"),
             // Absent from the files of apps before Sync.
             instagramCollections = post.optionalArray("instagramCollections").map { it.asString("instagramCollections") },
+            isNew = post.optionalBoolean("isNew"),
         )
     }
     return Backup(
@@ -227,6 +229,9 @@ private fun JsonObject.int(key: String): Int =
 
 private fun JsonObject.boolean(key: String): Boolean =
     primitive(key).takeIf { !it.isString }?.booleanOrNull ?: malformed(key)
+
+/** False when the file has no such key: it comes from an app that did not know it yet. */
+private fun JsonObject.optionalBoolean(key: String): Boolean = if (this[key] == null) false else boolean(key)
 
 private fun JsonElement.asString(key: String): String =
     (this as? JsonPrimitive)?.takeIf { it.isString }?.content ?: malformed(key)

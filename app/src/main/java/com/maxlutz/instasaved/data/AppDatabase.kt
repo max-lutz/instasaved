@@ -19,7 +19,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         DeletedPostTrace::class,
         AppliedExport::class,
     ],
-    version = 10,
+    version = 11,
 )
 @TypeConverters(NameListConverter::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -48,6 +48,7 @@ abstract class AppDatabase : RoomDatabase() {
             MIGRATION_7_8,
             MIGRATION_8_9,
             MIGRATION_9_10,
+            MIGRATION_10_11,
         )
 
         fun open(context: Context): AppDatabase =
@@ -185,5 +186,12 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
                 "`exportDate` TEXT NOT NULL, `appliedAt` INTEGER NOT NULL, PRIMARY KEY(`driveFileId`))",
         )
         db.execSQL("ALTER TABLE `posts` ADD COLUMN `instagramCollections` TEXT NOT NULL DEFAULT ''")
+    }
+}
+
+/** Adds the New marker. No Post is New: Sync has not said which ones it added. */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `posts` ADD COLUMN `isNew` INTEGER NOT NULL DEFAULT 0")
     }
 }

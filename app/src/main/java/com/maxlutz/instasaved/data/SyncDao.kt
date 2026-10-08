@@ -126,6 +126,7 @@ abstract class SyncDao {
                     ownerUsername = post.ownerUsername,
                     ownerName = post.ownerName,
                     instagramCollections = post.instagramCollections,
+                    isNew = true,
                 ),
             )
         }

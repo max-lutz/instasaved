@@ -71,7 +71,7 @@ Alphabetical order makes the result independent of how Meta orders the Export. F
 - Status line: "Synced 2 h ago · Export from 1 Oct", "Synced" being the last Sync that went through Drive's Exports. Error state when the last sync failed (Drive access not granted or refused, Drive unreachable, no Export found, an Export that could not be read), with the reason.
 - **Stale warning** when the newest Export in Drive is more than 3 days old — the Instagram schedule may have stopped. "Newest in Drive" is as of the last Sync that went through the Exports, and counts an Export that could not be read: its folder still shows the schedule at work.
 - **Daily background Sync**: once a day, when the phone has a network. It never opens Google's sign-in: if Google does not hand a token without asking, it does nothing until Drive has been connected by a "Sync now", and after that reports the lost access as an error state. When Drive cannot be reached it tries again sooner than the next day.
-- **Sync Summary** (dismissable, only shown when something changed): new · captions updated.
+- **Sync Summary** (dismissable, only shown when something changed): new · captions updated. It stays until it is dismissed or the next Sync that changes something replaces it; a Sync that changes nothing leaves it there.
 - No system notification.
 
 ## Test cases

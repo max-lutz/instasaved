@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
@@ -25,7 +26,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import androidx.room.withTransaction
@@ -59,6 +62,7 @@ import com.maxlutz.instasaved.sync.DriveRest
 import com.maxlutz.instasaved.sync.Sync
 import com.maxlutz.instasaved.sync.SyncProblem
 import com.maxlutz.instasaved.sync.SyncStatusText
+import com.maxlutz.instasaved.sync.SyncSummaryCard
 import com.maxlutz.instasaved.sync.SyncWorker
 import com.maxlutz.instasaved.tags.TagChange
 import com.maxlutz.instasaved.tags.TagPickerDialog
@@ -147,6 +151,7 @@ class MainActivity : ComponentActivity() {
                 val postTags by database.tagDao().observePostTags().collectAsState(initial = emptyList())
                 val deleted by database.recentlyDeletedDao().observe().collectAsState(initial = emptyList())
                 val status by syncStatus.status.collectAsState()
+                val summary by syncStatus.summary.collectAsState()
                 val syncing by sync.isRunning.collectAsState()
                 val allTags = tags.map { it.tag }
                 val withThumbnail by thumbnailStore.shortcodes.collectAsState()
@@ -190,7 +195,10 @@ class MainActivity : ComponentActivity() {
                     lifecycleScope.launch { snackbar.showSnackbar(sectionNameTakenMessage) }
                 }
                 val sectionChoice = SectionChoice(sections) { createSection(it, onNameTaken = showSectionNameTaken) }
-                val openPost: (Post) -> Unit = { openPostId = it.id }
+                val openPost: (Post) -> Unit = {
+                    openPostId = it.id
+                    if (it.isNew) lifecycleScope.launch { database.postDao().markSeen(it.id) }
+                }
                 val toSortName = stringResource(R.string.to_sort)
                 val bulk = BulkActions(
                     collections = collections.map { it.collection },
@@ -249,6 +257,15 @@ class MainActivity : ComponentActivity() {
                             onPutInSection = { collection, section -> putInSection(collection, section, snackbar) },
                             bottomBar = { bottomBar(Tab.Collections) },
                             syncStatus = { SyncStatusText(status, syncing, short = true) },
+                            syncSummary = {
+                                if (!summary.isEmpty) {
+                                    SyncSummaryCard(
+                                        summary,
+                                        onDismiss = syncStatus::dismissSummary,
+                                        modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 8.dp),
+                                    )
+                                }
+                            },
                         )
                         View.ToSort -> {
                             BackHandler { view = View.Home }
@@ -279,10 +296,12 @@ class MainActivity : ComponentActivity() {
                             MoreScreen(
                                 syncStatus = status,
                                 syncing = syncing,
+                                newCount = all.count { it.isNew },
                                 recentlyDeletedCount = deleted.size,
                                 tagCount = tags.size,
                                 snackbar = snackbar,
                                 onSyncNow = ::syncNow,
+                                onMarkAllSeen = { lifecycleScope.launch { database.postDao().markAllSeen() } },
                                 onOpenRecentlyDeleted = { view = View.RecentlyDeleted },
                                 onOpenTags = { view = View.Tags },
                                 onWriteBackup = {

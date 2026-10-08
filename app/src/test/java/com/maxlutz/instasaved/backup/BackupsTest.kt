@@ -177,6 +177,28 @@ class BackupsTest {
         assertEquals(emptyList<String>(), posts.get("A")?.instagramCollections)
     }
 
+    @Test
+    fun newPostsComeBackNew() = runTest {
+        posts.insert(Post(shortcode = "A", url = "https://www.instagram.com/p/A/", addedAt = 1, isNew = true))
+        addPost("B")
+        val taken = held()
+
+        restore(written())
+
+        assertEquals(taken, held())
+        assertTrue(checkNotNull(posts.get("A")).isNew)
+    }
+
+    @Test
+    fun aFileFromBeforeTheNewMarkerRestoresWithNoPostNew() = runTest {
+        addPost("A")
+        val file = written().replace(""","isNew":false""", "")
+
+        restore(file)
+
+        assertFalse(checkNotNull(posts.get("A")).isNew)
+    }
+
     // The next Sync applies every Export again: one applied after the Backup was taken brings back its Posts.
     @Test
     fun restoreForgetsWhichExportsWereApplied() = runTest {

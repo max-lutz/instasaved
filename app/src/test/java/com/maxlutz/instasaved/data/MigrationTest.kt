@@ -3,6 +3,7 @@ package com.maxlutz.instasaved.data
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.maxlutz.instasaved.sync.ExportedPost
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
@@ -266,5 +267,31 @@ class MigrationTest {
         assertEquals(7L to 8L, before?.addedAt to before?.modifiedAt)
         assertEquals(emptyList<String>(), applied)
         assertEquals(listOf("E"), after)
+    }
+
+    @Test
+    fun migrates10To11WithNoPostNew() = runTest {
+        createDatabase(
+            10,
+            seed = listOf(
+                "INSERT INTO posts (shortcode, url, addedAt, modifiedAt, seenInExport, title, titleHandEdited, " +
+                    "description, descriptionHandEdited, postNote, ownerUsername, ownerName, thumbnailFailures, " +
+                    "instagramCollections) " +
+                    "VALUES ('A', 'https://www.instagram.com/p/A/', 7, 8, 1, 'Hi', 0, 'Hi', 0, '', '', '', 0, '')",
+            ),
+        )
+
+        val db = openMigrated()
+        val before = db.postDao().get("A")
+        db.syncDao().apply(
+            AppliedExport("E", "instagram-someone-2026-10-01-x", "2026-10-01", 9),
+            listOf(ExportedPost("B", "https://www.instagram.com/p/B/", null, null, null, 5, emptyList())),
+        )
+        val added = db.postDao().get("B")
+        db.close()
+
+        assertEquals(false, before?.isNew)
+        assertEquals(7L to 8L, before?.addedAt to before?.modifiedAt)
+        assertEquals(true, added?.isNew)
     }
 }

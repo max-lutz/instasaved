@@ -36,6 +36,8 @@ Share a post from Instagram to add it.</string>
     <string name="post_note">Post Note</string>
     <string name="post_note_hint">Why did you save this?</string>
     <string name="has_post_note">Has a Post Note</string>
+    <string name="also_on_instagram_in">Also on Instagram in: %1$s</string>
+    <string name="new_post">New</string>
     <string name="open_in_instagram">Open in Instagram</string>
     <string name="nothing_can_open_link">No app can open this link</string>
     <string name="delete">Delete</string>
@@ -172,6 +174,9 @@ Open a Post to put it here.</string>
     <string name="sync_stale">No new Export for more than %1$d days: the Instagram schedule may have stopped</string>
     <string name="sync_stale_short">No recent Export</string>
     <string name="sync_nothing_new">Nothing new</string>
+    <string name="last_sync">Last Sync:</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="mark_all_as_seen">Mark all as seen</string>
     <plurals name="sync_new">
         <item quantity="one">%1$d new Post</item>
         <item quantity="other">%1$d new Posts</item>
