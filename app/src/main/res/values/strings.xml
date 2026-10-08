@@ -21,6 +21,7 @@ Share a post from Instagram to add it.</string>
         <item quantity="other">%1$d Posts</item>
     </plurals>
     <string name="count_with_bare">%1$d · %2$d bare</string>
+    <string name="bare_count">Bare · %1$d</string>
     <string name="show_bare_posts">Show Bare Posts</string>
     <string name="show_bare_posts_explained">Posts with no Tag and no Post Note</string>
     <string name="owner_and_added">%1$s · %2$s</string>

@@ -292,24 +292,43 @@ internal fun PostCard(
     }
 }
 
-/** Every Post, whatever its Collection, newest first. */
+/**
+ * Every Post, whatever its Collection, newest first. With "Show Bare Posts" on and a Bare Post among them, a chip
+ * above them shows only the Bare Posts.
+ *
+ * @param postTags which Posts carry which Tags.
+ * @param showBare whether "Show Bare Posts" is on.
+ * @param bareOnly whether the user asked for only the Bare Posts.
+ */
 @Composable
 fun AllScreen(
     posts: List<Post>,
     thumbnailOf: (Post) -> File?,
+    postTags: List<PostTag>,
+    showBare: Boolean,
+    bareOnly: Boolean,
+    onBareOnlyChange: (Boolean) -> Unit,
     snackbar: SnackbarHostState,
     onBack: () -> Unit,
     onOpen: (Post) -> Unit,
     bulk: BulkActions,
 ) {
+    val bare = rememberBareFilter(posts, postTags, offered = showBare, on = bareOnly, onChange = onBareOnlyChange)
     PostGridScreen(
         title = { Text(stringResource(R.string.all_posts)) },
-        posts = posts,
+        posts = bare.shown,
         thumbnailOf = thumbnailOf,
         emptyText = stringResource(R.string.all_empty),
         snackbar = snackbar,
         onBack = onBack,
         onOpen = onOpen,
+        header = if (bare.count == 0) {
+            null
+        } else {
+            {
+                Box(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) { BarePill(bare, onBareOnlyChange) }
+            }
+        },
         bulk = bulk,
     )
 }
@@ -334,6 +353,10 @@ private fun AllScreenPreview() {
                 )
             },
             thumbnailOf = { null },
+            postTags = emptyList(),
+            showBare = true,
+            bareOnly = false,
+            onBareOnlyChange = {},
             snackbar = remember { SnackbarHostState() },
             onBack = {},
             onOpen = {},
@@ -349,7 +372,11 @@ private fun EmptyAllScreenPreview() {
         AllScreen(
             emptyList(),
             thumbnailOf = { null },
-            remember { SnackbarHostState() },
+            postTags = emptyList(),
+            showBare = false,
+            bareOnly = false,
+            onBareOnlyChange = {},
+            snackbar = remember { SnackbarHostState() },
             onBack = {},
             onOpen = {},
             bulk = BulkActions(),

@@ -31,9 +31,11 @@ import com.maxlutz.instasaved.data.PALETTE
 import com.maxlutz.instasaved.data.Post
 import com.maxlutz.instasaved.data.PostTag
 import com.maxlutz.instasaved.data.Tag
+import com.maxlutz.instasaved.grid.BarePill
 import com.maxlutz.instasaved.grid.BulkActions
 import com.maxlutz.instasaved.grid.PostGridScreen
 import com.maxlutz.instasaved.grid.TagGrouping
+import com.maxlutz.instasaved.grid.rememberBareFilter
 import com.maxlutz.instasaved.ui.InstaSavedTheme
 import com.maxlutz.instasaved.ui.Pill
 import com.maxlutz.instasaved.ui.SoftButton
@@ -42,13 +44,16 @@ import java.io.File
 /**
  * A Collection's Posts, its Collection Note above them, and editing or deleting the Collection, or moving all its
  * Posts to another. Once any of its Posts carries a Tag, a chip groups them by Tag: under each Tag the Posts
- * carrying it, then those with none.
+ * carrying it, then those with none. Next to it, with "Show Bare Posts" on and a Bare Post among them, a chip shows
+ * only the Bare Posts, as one grid.
  *
  * @param others the other Collections, alphabetically.
  * @param onMoveAll the Collection to move all the Posts to, and whether to delete this one along the way.
  * @param onNoPostsToMove "Move all Posts to…" was picked with no Post to move.
  * @param tags every Tag, alphabetically.
  * @param postTags which Posts carry which Tags.
+ * @param showBare whether "Show Bare Posts" is on.
+ * @param bareOnly whether the user asked for only the Bare Posts.
  * @param sections what the editor needs to put the Collection in a Section.
  * @param bulk what selecting several Posts needs to act on them together.
  */
@@ -61,6 +66,9 @@ fun CollectionScreen(
     postTags: List<PostTag>,
     groupByTag: Boolean,
     onGroupByTagChange: (Boolean) -> Unit,
+    showBare: Boolean,
+    bareOnly: Boolean,
+    onBareOnlyChange: (Boolean) -> Unit,
     others: List<Collection>,
     sections: SectionChoice,
     snackbar: SnackbarHostState,
@@ -84,6 +92,7 @@ fun CollectionScreen(
         val ids = posts.mapTo(HashSet()) { it.id }
         postTags.any { it.postId in ids }
     }
+    val bare = rememberBareFilter(posts, postTags, offered = showBare, on = bareOnly, onChange = onBareOnlyChange)
 
     PostGridScreen(
         title = {
@@ -92,7 +101,7 @@ fun CollectionScreen(
                 Text(collection.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         },
-        posts = posts,
+        posts = bare.shown,
         thumbnailOf = thumbnailOf,
         emptyText = stringResource(R.string.collection_empty),
         snackbar = snackbar,
@@ -126,7 +135,7 @@ fun CollectionScreen(
                 )
             }
         },
-        header = if (collection.note.isBlank() && !anyTagged) {
+        header = if (collection.note.isBlank() && !anyTagged && bare.count == 0) {
             null
         } else {
             {
@@ -135,15 +144,24 @@ fun CollectionScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     if (collection.note.isNotBlank()) Text(collection.note, style = MaterialTheme.typography.bodyMedium)
-                    if (anyTagged) {
-                        Pill(onClick = { onGroupByTagChange(!groupByTag) }, selected = groupByTag) {
-                            Text(stringResource(R.string.group_by_tag), style = MaterialTheme.typography.labelLarge)
+                    if (anyTagged || bare.count > 0) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (anyTagged) {
+                                Pill(onClick = { onGroupByTagChange(!groupByTag) }, selected = groupByTag) {
+                                    Text(
+                                        stringResource(R.string.group_by_tag),
+                                        style = MaterialTheme.typography.labelLarge,
+                                    )
+                                }
+                            }
+                            if (bare.count > 0) BarePill(bare, onBareOnlyChange)
                         }
                     }
                 }
             }
         },
-        grouping = if (groupByTag && anyTagged) TagGrouping(tags, postTags) else null,
+        // Every Bare Post would be under "No Tag".
+        grouping = if (groupByTag && anyTagged && !bare.active) TagGrouping(tags, postTags) else null,
         bulk = bulk,
     )
 
@@ -208,6 +226,9 @@ private fun CollectionScreenPreview() {
             postTags = listOf(PostTag(2, 1)),
             groupByTag = true,
             onGroupByTagChange = {},
+            showBare = true,
+            bareOnly = false,
+            onBareOnlyChange = {},
             others = emptyList(),
             sections = SectionChoice(),
             snackbar = remember { SnackbarHostState() },
