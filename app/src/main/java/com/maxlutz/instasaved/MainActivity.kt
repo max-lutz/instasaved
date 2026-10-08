@@ -146,7 +146,9 @@ class MainActivity : ComponentActivity() {
             InstaSavedTheme {
                 val collections by database.collectionDao().observeAll().collectAsState(initial = emptyList())
                 val sections by database.sectionDao().observeAll().collectAsState(initial = emptyList())
-                val all by database.postDao().observeAll().collectAsState(initial = emptyList())
+                // Null until the list loads.
+                val loadedAll by database.postDao().observeAll().collectAsState(initial = null)
+                val all = loadedAll.orEmpty()
                 val toSort by database.postDao().observeToSort().collectAsState(initial = emptyList())
                 val bareCount by database.postDao().observeBareCount().collectAsState(initial = 0)
                 val showBarePosts by settings.showBarePosts.collectAsState()
@@ -169,6 +171,8 @@ class MainActivity : ComponentActivity() {
                 var groupByTag by rememberSaveable { mutableStateOf(false) }
                 var tagId by rememberSaveable { mutableStateOf<Long?>(null) }
                 var groupCollectionsByTag by rememberSaveable { mutableStateOf(true) }
+                // Only the Bare Posts of the view that is open; off again each time one is opened.
+                var bareOnly by rememberSaveable { mutableStateOf(false) }
                 // A Tag deleted meanwhile no longer filters anything.
                 val shownTagId = tagId?.takeIf { id -> allTags.any { it.id == id } }
                 val browsing = Browsing(Browse(query, sort, groupByTag, shownTagId), allTags, postTags) {
@@ -244,8 +248,14 @@ class MainActivity : ComponentActivity() {
                             sections = sections,
                             coverOf = { covers[it.id].orEmpty() },
                             snackbar = snackbar,
-                            onOpenAll = { view = View.All },
-                            onOpenCollection = { view = View.InCollection(it.id) },
+                            onOpenAll = {
+                                bareOnly = false
+                                view = View.All
+                            },
+                            onOpenCollection = {
+                                bareOnly = false
+                                view = View.InCollection(it.id)
+                            },
                             onCreate = { createCollection(it, onNameTaken = showNameTaken) },
                             onCreateSection = { createSection(it, onNameTaken = showSectionNameTaken) },
                             onRenameSection = { section, name ->
@@ -348,22 +358,31 @@ class MainActivity : ComponentActivity() {
                         }
                         View.All -> {
                             BackHandler { view = View.Home }
-                            AllScreen(
-                                all,
-                                thumbnailOf,
-                                snackbar,
-                                onBack = { view = View.Home },
-                                onOpen = openPost,
-                                bulk = bulk,
-                            )
+                            // Not before the list loads: an empty one would turn the Bare Posts filter off.
+                            loadedAll?.let {
+                                AllScreen(
+                                    it,
+                                    thumbnailOf,
+                                    postTags = postTags,
+                                    showBare = showBarePosts,
+                                    bareOnly = bareOnly,
+                                    onBareOnlyChange = { on -> bareOnly = on },
+                                    snackbar = snackbar,
+                                    onBack = { view = View.Home },
+                                    onOpen = openPost,
+                                    bulk = bulk,
+                                )
+                            }
                         }
                         is View.InCollection -> {
                             BackHandler { view = View.Home }
                             val collection = collections.find { it.collection.id == shown.id }?.collection
-                            val posts by remember(shown.id) { database.postDao().observeInCollection(shown.id) }
-                                .collectAsState(initial = emptyList())
+                            val loadedPosts by remember(shown.id) { database.postDao().observeInCollection(shown.id) }
+                                .collectAsState(initial = null)
+                            // Not before its Posts load: an empty list would turn the Bare Posts filter off.
+                            val posts = loadedPosts
                             // Null until the list loads, and after the Collection is deleted.
-                            collection?.let {
+                            if (posts != null) collection?.let {
                                 CollectionScreen(
                                     collection = it,
                                     posts = posts,
@@ -372,6 +391,9 @@ class MainActivity : ComponentActivity() {
                                     postTags = postTags,
                                     groupByTag = groupCollectionsByTag,
                                     onGroupByTagChange = { groupCollectionsByTag = it },
+                                    showBare = showBarePosts,
+                                    bareOnly = bareOnly,
+                                    onBareOnlyChange = { on -> bareOnly = on },
                                     others = collections.map { c -> c.collection } - it,
                                     sections = sectionChoice,
                                     snackbar = snackbar,
