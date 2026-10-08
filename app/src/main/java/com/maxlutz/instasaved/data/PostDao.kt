@@ -89,6 +89,14 @@ interface PostDao {
         ids.forEach { delete(it, at) }
     }
 
+    /** The Post is no longer New: the user opened it. */
+    @Query("UPDATE posts SET isNew = 0 WHERE id = :id")
+    suspend fun markSeen(id: Long)
+
+    /** "Mark all as seen": no Post is New any more. */
+    @Query("UPDATE posts SET isNew = 0 WHERE isNew")
+    suspend fun markAllSeen()
+
     /** Counts one more failed Thumbnail download. */
     @Query("UPDATE posts SET thumbnailFailures = thumbnailFailures + 1, thumbnailFailedAt = :at WHERE id = :id")
     suspend fun thumbnailFailed(id: Long, at: Long)

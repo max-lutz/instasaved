@@ -57,11 +57,15 @@ data class SyncStatus(
     }
 }
 
-/** The sync status, kept in [prefs] across launches. */
+/** The sync status and the Sync Summary, kept in [prefs] across launches. */
 class SyncStatusStore(private val prefs: SharedPreferences) {
     private val state = MutableStateFlow(load())
+    private val summaryState = MutableStateFlow(loadSummary())
 
     val status: StateFlow<SyncStatus> = state.asStateFlow()
+
+    /** The Sync Summary to show: what the last Sync that changed something did; empty once dismissed. */
+    val summary: StateFlow<SyncSummary> = summaryState.asStateFlow()
 
     /** A Sync went through the Exports: the status line says when, and what went wrong with some of them. */
     fun synced(at: Long, newestExport: LocalDate?, newestInDrive: LocalDate?, problem: SyncProblem?) =
@@ -69,6 +73,27 @@ class SyncStatusStore(private val prefs: SharedPreferences) {
 
     /** A Sync stopped before going through the Exports: the status line keeps the last one that did. */
     fun failed(problem: SyncProblem) = save(state.value.copy(problem = problem))
+
+    /** A Sync changed something: its [summary] takes the place of the one shown. An empty one leaves it there. */
+    fun summarize(summary: SyncSummary) {
+        if (!summary.isEmpty) saveSummary(summary)
+    }
+
+    /** The user dismissed the Sync Summary: nothing to show until a Sync changes something again. */
+    fun dismissSummary() = saveSummary(SyncSummary())
+
+    private fun saveSummary(summary: SyncSummary) {
+        prefs.edit {
+            putInt(SUMMARY_NEW, summary.new)
+            putInt(SUMMARY_CAPTIONS_UPDATED, summary.captionsUpdated)
+        }
+        summaryState.value = summary
+    }
+
+    private fun loadSummary() = SyncSummary(
+        new = prefs.getInt(SUMMARY_NEW, 0),
+        captionsUpdated = prefs.getInt(SUMMARY_CAPTIONS_UPDATED, 0),
+    )
 
     private fun save(status: SyncStatus) {
         prefs.edit {
@@ -112,6 +137,8 @@ class SyncStatusStore(private val prefs: SharedPreferences) {
         const val NEWEST_EXPORT = "newestExport"
         const val NEWEST_IN_DRIVE = "newestInDrive"
         const val PROBLEM = "problem"
+        const val SUMMARY_NEW = "summaryNew"
+        const val SUMMARY_CAPTIONS_UPDATED = "summaryCaptionsUpdated"
     }
 }
 

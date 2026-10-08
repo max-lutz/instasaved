@@ -45,6 +45,7 @@ import com.maxlutz.instasaved.data.Collection
 import com.maxlutz.instasaved.data.PALETTE
 import com.maxlutz.instasaved.data.Post
 import com.maxlutz.instasaved.data.Tag
+import com.maxlutz.instasaved.data.alsoOnInstagramIn
 import com.maxlutz.instasaved.data.editDescription
 import com.maxlutz.instasaved.data.editPostNote
 import com.maxlutz.instasaved.data.editTitle
@@ -58,8 +59,8 @@ import com.maxlutz.instasaved.ui.SoftButton
 
 /**
  * An opened Post, laid out like an Instagram post: its owner above its Embed, then its Collection, Title and
- * Description, Tags and Post Note. The texts are edited where they are read; every edit is handed to
- * [onTextChange] as the whole edited Post, flags included.
+ * Description, Tags and Post Note, then the other Instagram Collections it is in. The texts are edited where they
+ * are read; every edit is handed to [onTextChange] as the whole edited Post, flags included.
  *
  * @param collections every Collection, alphabetically, to pick the Post's from.
  * @param onCollectionChange the picked Collection's id, or null for To sort.
@@ -181,6 +182,14 @@ fun PostDetailScreen(
                         )
                     }
                 }
+                val alsoIn = post.alsoOnInstagramIn(collections.find { it.id == post.collectionId }?.name)
+                if (alsoIn.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.also_on_instagram_in, alsoIn.joinToString(", ")),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
@@ -285,6 +294,7 @@ private fun PostDetailScreenPreview() {
                 description = "Best pasta in town. Recipe below!",
                 collectionId = 1,
                 ownerName = "Pasta Grannies",
+                instagramCollections = listOf("Pasta", "Travel 2025"),
             ),
             collections = listOf(Collection(1, "🍝 Pasta", PALETTE[0])),
             onBack = {},

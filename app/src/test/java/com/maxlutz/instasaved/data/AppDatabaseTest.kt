@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -107,5 +108,46 @@ class AppDatabaseTest {
 
         db.recentlyDeletedDao().restore(id)
         assertEquals(listOf("ABC123"), db.postDao().observeToSort().first().map { it.shortcode })
+    }
+
+    private suspend fun insertNew(shortcode: String) = db.postDao().insert(
+        Post(shortcode = shortcode, url = "https://www.instagram.com/p/$shortcode/", addedAt = 1L, isNew = true),
+    )
+
+    @Test
+    fun openingAPostClearsItsNewMarkerOnly() = runTest {
+        val a = insertNew("A")
+        insertNew("B")
+
+        db.postDao().markSeen(a)
+
+        val post = checkNotNull(db.postDao().get("A"))
+        assertFalse(post.isNew)
+        // Not a change by the user to the Post itself.
+        assertEquals(post.addedAt, post.modifiedAt)
+        assertTrue(checkNotNull(db.postDao().get("B")).isNew)
+    }
+
+    @Test
+    fun markAllAsSeenLeavesNoPostNew() = runTest {
+        insertNew("A")
+        val b = insertNew("B")
+        db.postDao().delete(b, at = 9L)
+
+        db.postDao().markAllSeen()
+
+        assertFalse(checkNotNull(db.postDao().get("A")).isNew)
+        // Restored from Recently deleted, it would not be New either.
+        assertFalse(checkNotNull(db.postDao().get("B")).isNew)
+    }
+
+    @Test
+    fun editingTheTextOfANewPostLeavesItsMarker() = runTest {
+        insertNew("A")
+        val post = checkNotNull(db.postDao().get("A"))
+
+        db.postDao().updateText(post.copy(postNote = "Try it", isNew = false), at = 9L)
+
+        assertTrue(checkNotNull(db.postDao().get("A")).isNew)
     }
 }

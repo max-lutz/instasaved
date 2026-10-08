@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -353,5 +354,96 @@ class SyncTest {
         sync.failed(SyncProblem.AccessNotGranted)
 
         assertEquals(SyncProblem.AccessNotGranted, status.status.value.problem)
+    }
+
+    // sync-spec R1 and R3: New is for the Posts Sync adds.
+    @Test
+    fun thePostsSyncAddsAreNewAndThoseAlreadyInTheAppAreNot() = runTest {
+        posts.insert(Post(shortcode = "A", url = "https://www.instagram.com/p/A/", addedAt = 7))
+        drive.add("2026-10-01", savedPosts(entry("A"), entry("B")))
+
+        sync.run(drive)
+
+        assertFalse(post("A").isNew)
+        assertTrue(post("B").isNew)
+    }
+
+    @Test
+    fun aPostTheUserOpenedIsNotNewAgainWhenALaterExportListsIt() = runTest {
+        drive.add("2026-10-01", savedPosts(entry("A")))
+        sync.run(drive)
+        posts.markSeen(post("A").id)
+
+        drive.add("2026-10-02", savedPosts(entry("A", caption = "changed")))
+        sync.run(drive)
+
+        assertEquals("changed", post("A").description)
+        assertFalse(post("A").isNew)
+    }
+
+    @Test
+    fun recordsTheSummaryTotalledOverTheExportsAcrossARestartOfTheApp() = runTest {
+        drive.add("2026-10-01", savedPosts(entry("A", caption = "first"), entry("B")))
+        drive.add("2026-10-02", savedPosts(entry("A", caption = "second")))
+
+        sync.run(drive)
+
+        val summary = SyncSummary(new = 2, captionsUpdated = 1)
+        assertEquals(summary, status.summary.value)
+        val reloaded = SyncStatusStore(context.getSharedPreferences("sync-test", Context.MODE_PRIVATE))
+        assertEquals(summary, reloaded.summary.value)
+    }
+
+    @Test
+    fun theSummaryIsOfTheLastSyncThatChangedSomething() = runTest {
+        drive.add("2026-10-01", savedPosts(entry("A"), entry("B")))
+        sync.run(drive)
+
+        // Nothing new, then an Export with no posts: the Summary stays.
+        sync.run(drive)
+        drive.add("2026-10-02", "[]")
+        sync.run(drive)
+        assertEquals(SyncSummary(new = 2), status.summary.value)
+
+        drive.add("2026-10-03", savedPosts(entry("C")))
+        sync.run(drive)
+        assertEquals(SyncSummary(new = 1), status.summary.value)
+    }
+
+    @Test
+    fun aDismissedSummaryStaysAwayUntilASyncChangesSomething() = runTest {
+        drive.add("2026-10-01", savedPosts(entry("A")))
+        sync.run(drive)
+
+        status.dismissSummary()
+        sync.run(drive)
+
+        assertTrue(status.summary.value.isEmpty)
+        val reloaded = SyncStatusStore(context.getSharedPreferences("sync-test", Context.MODE_PRIVATE))
+        assertTrue(reloaded.summary.value.isEmpty)
+
+        drive.add("2026-10-02", savedPosts(entry("A", caption = "changed")))
+        sync.run(drive)
+        assertEquals(SyncSummary(captionsUpdated = 1), status.summary.value)
+    }
+
+    @Test
+    fun aSyncWithoutChangesHasNoSummary() = runTest {
+        drive.add("2026-10-01", "[]")
+
+        sync.run(drive)
+
+        assertTrue(status.summary.value.isEmpty)
+    }
+
+    @Test
+    fun accessRefusedHalfwayStillSummarizesTheExportsApplied() = runTest {
+        drive.add("2026-10-01", savedPosts(entry("A")))
+        val second = drive.add("2026-10-02", savedPosts(entry("B")))
+        drive.failing[second.id] = DriveAccessException("401")
+
+        sync.run(drive)
+
+        assertEquals(SyncSummary(new = 1), status.summary.value)
     }
 }

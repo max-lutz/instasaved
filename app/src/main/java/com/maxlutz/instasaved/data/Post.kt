@@ -27,6 +27,7 @@ import androidx.room.PrimaryKey
  * @property thumbnailFailedAt when it last failed, in epoch milliseconds: the retry waits from then (ADR-0008).
  * @property instagramCollections the Instagram Collections the last Export that listed the Post put it in, for
  *   display only: Sync never moves a Post by them (sync-spec R1).
+ * @property isNew Sync added the Post and the user has not opened it yet. Only Sync sets it (sync-spec R1).
  */
 @Entity(
     tableName = "posts",
@@ -57,4 +58,14 @@ data class Post(
     val thumbnailFailures: Int = 0,
     val thumbnailFailedAt: Long? = null,
     val instagramCollections: List<String> = emptyList(),
+    val isNew: Boolean = false,
 )
+
+/**
+ * The Instagram Collections to show as "also on Instagram in": those the last Export listed the Post in, without
+ * the one named like the Collection it is in.
+ *
+ * @param collectionName the name of the Post's Collection; null in To sort.
+ */
+fun Post.alsoOnInstagramIn(collectionName: String?): List<String> =
+    instagramCollections.filterNot { collectionName != null && sameName(it, collectionName) }

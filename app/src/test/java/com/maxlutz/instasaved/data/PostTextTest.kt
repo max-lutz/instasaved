@@ -104,4 +104,25 @@ class PostTextTest {
         assertFalse(edited.titleHandEdited)
         assertFalse(edited.descriptionHandEdited)
     }
+
+    // "Also on Instagram in"
+
+    private fun inInstagramCollections(vararg names: String) = post.copy(instagramCollections = names.toList())
+
+    // sync-spec test 19.
+    @Test
+    fun alsoOnInstagramInLeavesOutTheCollectionThePostIsIn() {
+        assertEquals(listOf("Recipes"), inInstagramCollections("Recipes", "Travel").alsoOnInstagramIn("Travel"))
+        assertEquals(listOf("Recipes"), inInstagramCollections("Recipes", " travel").alsoOnInstagramIn("Travel"))
+        assertEquals(emptyList<String>(), inInstagramCollections("Travel").alsoOnInstagramIn("Travel"))
+    }
+
+    @Test
+    fun alsoOnInstagramInNamesThemAllForAPostElsewhere() {
+        val post = inInstagramCollections("Recipes", "Travel")
+
+        assertEquals(listOf("Recipes", "Travel"), post.alsoOnInstagramIn(null))
+        assertEquals(listOf("Recipes", "Travel"), post.alsoOnInstagramIn("Dinner"))
+        assertEquals(emptyList<String>(), this.post.alsoOnInstagramIn(null))
+    }
 }

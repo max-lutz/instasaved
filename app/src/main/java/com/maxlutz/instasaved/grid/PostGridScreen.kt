@@ -34,6 +34,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -196,7 +198,7 @@ private fun GroupHeader(group: PostGroup) {
 /**
  * The Post's Thumbnail as a square, or a placeholder card naming its owner until there is one. A reel is marked in
  * the top corner, a Post with a Post Note in the bottom one; [overlay] is written across the bottom instead.
- * A [selected] Post is tinted and checked.
+ * A New Post has a dot in the other top corner. A [selected] Post is tinted and checked.
  */
 @Composable
 internal fun PostCard(
@@ -264,6 +266,20 @@ internal fun PostCard(
                     .padding(horizontal = 4.dp, vertical = 2.dp),
             )
         }
+        // Not in Recently deleted, where nothing is opened; the check of a selected Post takes its corner.
+        if (post.isNew && post.deletedAt == null && !selected) {
+            val new = stringResource(R.string.new_post)
+            Box(
+                Modifier
+                    .align(Alignment.TopStart)
+                    .padding(4.dp)
+                    .size(14.dp)
+                    .background(Color.White, CircleShape)
+                    .padding(2.dp)
+                    .background(MaterialTheme.colorScheme.primary, CircleShape)
+                    .semantics { contentDescription = new },
+            )
+        }
         if (selected) {
             Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)))
             Icon(
@@ -306,7 +322,16 @@ private fun AllScreenPreview() {
             listOf("Carbonara" to "Pasta Grannies", "Dal" to "", "Ramen" to "Tiny Kitchen").mapIndexed { i, post ->
                 val (title, owner) = post
                 val note = if (i == 0) "Try this next month." else ""
-                Post(id = i + 1L, shortcode = "P$i", url = "", addedAt = 0, title = title, ownerName = owner, postNote = note)
+                Post(
+                    id = i + 1L,
+                    shortcode = "P$i",
+                    url = "",
+                    addedAt = 0,
+                    title = title,
+                    ownerName = owner,
+                    postNote = note,
+                    isNew = i == 1,
+                )
             },
             thumbnailOf = { null },
             snackbar = remember { SnackbarHostState() },
