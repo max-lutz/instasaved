@@ -7,6 +7,14 @@ import androidx.room.Query
 import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * SQL for "this row of `posts` is a Bare Post": no Tag and no Post Note. A Post Note of only spaces and line breaks
+ * is none.
+ */
+internal const val IS_BARE =
+    "TRIM(posts.postNote, ' ' || char(9, 10, 13)) = '' " +
+        "AND NOT EXISTS (SELECT 1 FROM post_tags WHERE post_tags.postId = posts.id)"
+
 @Dao
 interface PostDao {
     /** Returns the new row id, or -1 if a Post with the same shortcode already exists. */
@@ -23,6 +31,10 @@ interface PostDao {
     /** Every Post not deleted, newest first. */
     @Query("SELECT * FROM posts WHERE deletedAt IS NULL ORDER BY addedAt DESC, id DESC")
     fun observeAll(): Flow<List<Post>>
+
+    /** How many Posts are Bare Posts, To sort included, Recently deleted ones excluded. */
+    @Query("SELECT COUNT(*) FROM posts WHERE deletedAt IS NULL AND $IS_BARE")
+    fun observeBareCount(): Flow<Int>
 
     /** Posts in To sort (no Collection), newest first. */
     @Query("SELECT * FROM posts WHERE collectionId IS NULL AND deletedAt IS NULL ORDER BY addedAt DESC, id DESC")

@@ -88,6 +88,7 @@ class MainActivity : ComponentActivity() {
     private val backups by lazy { (application as InstaSavedApplication).backups }
     private val sync by lazy { (application as InstaSavedApplication).sync }
     private val syncStatus by lazy { (application as InstaSavedApplication).syncStatus }
+    private val settings by lazy { (application as InstaSavedApplication).settings }
     private val shareIn by lazy { ShareIn(database.postDao(), database.recentlyDeletedDao()) }
 
     // Text is saved on every keystroke; the lock keeps the saves in typing order.
@@ -147,6 +148,8 @@ class MainActivity : ComponentActivity() {
                 val sections by database.sectionDao().observeAll().collectAsState(initial = emptyList())
                 val all by database.postDao().observeAll().collectAsState(initial = emptyList())
                 val toSort by database.postDao().observeToSort().collectAsState(initial = emptyList())
+                val bareCount by database.postDao().observeBareCount().collectAsState(initial = 0)
+                val showBarePosts by settings.showBarePosts.collectAsState()
                 val tags by database.tagDao().observeAll().collectAsState(initial = emptyList())
                 val postTags by database.tagDao().observePostTags().collectAsState(initial = emptyList())
                 val deleted by database.recentlyDeletedDao().observe().collectAsState(initial = emptyList())
@@ -234,6 +237,8 @@ class MainActivity : ComponentActivity() {
                     null -> when (val shown = view) {
                         View.Home -> CollectionsScreen(
                             allCount = all.size,
+                            allBareCount = bareCount,
+                            showBare = showBarePosts,
                             allCover = allCover,
                             collections = collections,
                             sections = sections,
@@ -299,11 +304,13 @@ class MainActivity : ComponentActivity() {
                                 newCount = all.count { it.isNew },
                                 recentlyDeletedCount = deleted.size,
                                 tagCount = tags.size,
+                                showBarePosts = showBarePosts,
                                 snackbar = snackbar,
                                 onSyncNow = ::syncNow,
                                 onMarkAllSeen = { lifecycleScope.launch { database.postDao().markAllSeen() } },
                                 onOpenRecentlyDeleted = { view = View.RecentlyDeleted },
                                 onOpenTags = { view = View.Tags },
+                                onShowBarePostsChange = settings::setShowBarePosts,
                                 onWriteBackup = {
                                     pickBackupDestination.launch("instasaved-backup-${LocalDate.now()}.json")
                                 },

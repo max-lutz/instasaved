@@ -102,6 +102,8 @@ import java.io.File
  * to move all its Posts there; dragging it onto a Section's header puts the Collection in that Section. A tap on a
  * Section's header collapses or expands it; a long-press renames or deletes it.
  *
+ * @param allBareCount how many of all the Posts are Bare Posts.
+ * @param showBare whether the covers say how many of their Posts are Bare Posts.
  * @param allCover the latest Thumbnails of all the Posts, up to 4.
  * @param collections every Collection, alphabetically.
  * @param sections every Section, alphabetically.
@@ -120,6 +122,8 @@ import java.io.File
 @Composable
 fun CollectionsScreen(
     allCount: Int,
+    allBareCount: Int,
+    showBare: Boolean,
     allCover: List<File>,
     collections: List<CollectionWithCount>,
     sections: List<Section>,
@@ -187,6 +191,8 @@ fun CollectionsScreen(
             syncSummary()
             CoverGrid(
                 allCount,
+                allBareCount,
+                showBare,
                 allCover,
                 collections,
                 layout,
@@ -277,6 +283,8 @@ fun CollectionsScreen(
 @Composable
 private fun CoverGrid(
     allCount: Int,
+    allBareCount: Int,
+    showBare: Boolean,
     allCover: List<File>,
     collections: List<CollectionWithCount>,
     layout: SavedLayout,
@@ -405,17 +413,19 @@ private fun CoverGrid(
                 Cover(
                     stringResource(R.string.all_posts),
                     allCount,
+                    bareCount = if (showBare) allBareCount else 0,
                     allCover,
                     color = null,
                     modifier = Modifier.clickable(onClick = onOpenAll),
                 )
             }
-            val cover: @Composable (CollectionWithCount) -> Unit = { (collection, postCount) ->
+            val cover: @Composable (CollectionWithCount) -> Unit = { (collection, postCount, bareCount) ->
                 val id = collection.id
                 DisposableEffect(id) { onDispose { bounds.remove(id) } }
                 Cover(
                     collection.name,
                     postCount,
+                    bareCount = if (showBare) bareCount else 0,
                     coverOf(collection),
                     color = collection.color,
                     modifier = Modifier
@@ -458,6 +468,7 @@ private fun CoverGrid(
             Cover(
                 it.item.collection.name,
                 it.item.postCount,
+                bareCount = if (showBare) it.item.bareCount else 0,
                 coverOf(it.item.collection),
                 color = it.item.collection.color,
                 modifier = Modifier
@@ -618,11 +629,15 @@ private fun SectionHeader(
 // Less than the grid's side padding, which the highlight must fit in.
 private val HEADER_HIGHLIGHT_OVERHANG = 8.dp
 
-/** A cover card: the mosaic, then the name and how many Posts are behind it. [highlighted] as the drop target. */
+/**
+ * A cover card: the mosaic, then the name and how many Posts are behind it, followed by how many of them are Bare
+ * Posts unless [bareCount] is 0. [highlighted] as the drop target.
+ */
 @Composable
 private fun Cover(
     name: String,
     postCount: Int,
+    bareCount: Int,
     thumbnails: List<File>,
     color: Int?,
     modifier: Modifier = Modifier,
@@ -670,7 +685,7 @@ private fun Cover(
             modifier = Modifier.padding(top = 7.dp),
         )
         Text(
-            postCount.toString(),
+            if (bareCount > 0) stringResource(R.string.count_with_bare, postCount, bareCount) else postCount.toString(),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -683,9 +698,11 @@ private fun CollectionsScreenPreview() {
     InstaSavedTheme {
         CollectionsScreen(
             allCount = 23,
+            allBareCount = 9,
+            showBare = true,
             allCover = emptyList(),
             collections = listOf(
-                CollectionWithCount(Collection(1, "✈️ Japan", PALETTE[1], "Kyoto first"), 8),
+                CollectionWithCount(Collection(1, "✈️ Japan", PALETTE[1], "Kyoto first"), 8, bareCount = 3),
                 CollectionWithCount(Collection(2, "🍝 Pasta", PALETTE[0], sectionId = 1), 3),
                 CollectionWithCount(Collection(3, "🥗 Salads", PALETTE[2], sectionId = 1), 5),
             ),

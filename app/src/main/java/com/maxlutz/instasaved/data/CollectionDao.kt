@@ -9,9 +9,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 abstract class CollectionDao {
-    /** All Collections, alphabetically, each with its Post count. */
+    /** All Collections, alphabetically, each with its Post count and its Bare Post count. */
     @Query(
-        "SELECT collections.*, COUNT(posts.id) AS postCount FROM collections " +
+        "SELECT collections.*, COUNT(posts.id) AS postCount, " +
+            "COUNT(CASE WHEN posts.id IS NOT NULL AND $IS_BARE THEN 1 END) AS bareCount FROM collections " +
             "LEFT JOIN posts ON posts.collectionId = collections.id AND posts.deletedAt IS NULL " +
             "GROUP BY collections.id ORDER BY collections.name, collections.id",
     )

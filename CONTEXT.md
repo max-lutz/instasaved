@@ -44,6 +44,10 @@ _Avoid_: Unsorted, inbox, uncategorized
 A reusable, user-defined label (a name plus a color from the shared palette). A Post can carry up to 4 Tags, independent of its Collection.
 _Avoid_: Category, label, hashtag
 
+**Bare Post**:
+A Post with no Tag and no Post Note: one the user has added nothing to yet. A hand-edited Title or Description does not change that, and neither does its Collection. A Post in Recently deleted is never counted as one.
+_Avoid_: Empty, untagged, unorganized, to do
+
 **Export**:
 A folder that Instagram's "Export your information" writes to the user's Google Drive on a daily schedule, as JSON. The first Export of a schedule contains all saved posts and Instagram Collections; each later one contains only the posts saved since the previous Export, without Instagram Collections. The only automatic source of saved posts.
 _Avoid_: Download, dump, backup (Backup is the app's own data)
